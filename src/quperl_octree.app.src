@@ -1,0 +1,14 @@
+{application, quperl_octree,
+ [
+  {description, "An Erlang quperl_octree library"},
+  {vsn, "1"},
+  {modules, [
+             quperl_octree
+            ]},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {env, []}
+ ]}.
