@@ -1,8 +1,9 @@
 %%
 %% @doc manage arbitrary volumes within octree.
 %%
+%%
 %% <p>volumes are encoded as sets of intervals of a Morton endoding. Individual 
-%% start and end nodes may be ecnoded in one of two ways:</p>
+%% start and end nodes may be encoded in one of two ways:</p>
 %%
 %% <ul>
 %%  <li>as a record of depth and the path through the tree for each of the 
