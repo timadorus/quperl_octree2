@@ -13,17 +13,27 @@ Internally the axis are partitioned into 2^(MaxDepth-1) intervals.
 
 ## Usage
 
-Use one of the <code>new</code> functions to create a space:
+Use one of the <code>new_volume</code> functions to create a volume:
 
-    $ Empty = quperl_octree:new().
-    
-    $ AaBB = quperl_octree:new({0.1,0.2,0.3},{0.4,0.5,0.6}).
+    $ Empty = quperl_octree:new_volume().
 
-perform operations on the node-set:
+    $ AaBB = quperl_octree:new_volume({0.1,0.2,0.3},{0.4,0.5,0.6}).
 
-    $ Combined = quperl_octree:merge(Set1, Set2).
+single nodes can be created with:
+
+    $ RootNode = quperl_octree:new_node().
+
+    $ Node = quperl_octree:new_node({0.1,0.2,0.3})
+
+perform operations on the node sets:
+
+    $ Combined = quperl_octree:merge(Volume1, Volume2).
 
 retrieve nodes that are in one, but not in the other set: 
 
-    $ Remainder = quperl_octree:subtract(LargeSet, SmallerSet).
+    $ Remainder = quperl_octree:subtract(LargeVolume, SmallerVolume).
+    
+execute function on each node in a volume:
+
+    $ quperl_octree:map_nodes(Fun, Acc0, Volume).
 

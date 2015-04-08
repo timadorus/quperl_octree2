@@ -29,9 +29,10 @@ api_test_() ->
 	  fun setup_env/0,
 	  fun takedown_env/1,
       fun(Args) -> [
-                    ?_test(test_new0(Args)),
-                    ?_test(test_new1(Args)),
-                    ?_test(test_normalize(Args))
+                    ?_test(test_new_volume0(Args)),
+                    ?_test(test_new_volume1(Args)),
+                    ?_test(test_normalize_nodes(Args)),
+                    ?_test(test_normalize_points(Args))
                    ]
       end }.
 
@@ -39,24 +40,24 @@ setup_env() -> {args}.
 
 takedown_env(_Args) -> ok.
 
-test_new0(_Args) ->
+test_new_volume0(_Args) ->
     
-    Octree = quperl_octree:new(),
+    Octree = quperl_octree:new_volume(),
 
     ?assertEqual(?DEFAULT_MAX_DEPTH, Octree#octree.max_depth),
     
     ok.
 
-test_new1(_Args) -> 
+test_new_volume1(_Args) -> 
     
-    Octree = quperl_octree:new(10),
+    Octree = quperl_octree:new_volume(10),
 
 ?assertEqual(10, Octree#octree.max_depth),
 
 ok.
 
 
-test_normalize(_Args) ->
+test_normalize_nodes(_Args) ->
     ?assertThrow(different_point_depth_not_supported, 
                  normalize(#ot_node_id{depth=1}, #ot_node_id{depth=2})),
     
@@ -68,3 +69,24 @@ test_normalize(_Args) ->
 
     ok.
 
+test_normalize_points(_Args) ->
+
+    TestCases = [{{{0.1, 0.2, 0.3},{0.4, 0.5, 0.6}}, {0.1,0.2,0.3}, {0.4,0.5,0.6}},
+                 
+                 {{{0.1, 0.1, 0.1},{0.2, 0.1, 0.1}}, {0.1, 0.1, 0.1}, {0.2, 0.1, 0.1}},
+                 {{{0.1, 0.1, 0.1},{0.1, 0.2, 0.1}}, {0.1, 0.1, 0.1}, {0.1, 0.2, 0.1}},
+                 {{{0.1, 0.1, 0.1},{0.1, 0.1, 0.2}}, {0.1, 0.1, 0.1}, {0.1, 0.1, 0.2}},
+
+                 {{{0.1, 0.1, 0.1},{0.2, 0.1, 0.1}}, {0.2, 0.1, 0.1}, {0.1, 0.1, 0.1}},
+                 {{{0.1, 0.2, 0.1},{0.1, 0.2, 0.1}}, {0.1, 0.2, 0.1}, {0.1, 0.1, 0.1}},
+                 {{{0.1, 0.1, 0.2},{0.1, 0.1, 0.2}}, {0.1, 0.1, 0.2}, {0.1, 0.1, 0.1}},
+                 
+                 {{{0.1, 0.3, 0.5},{0.2, 0.4, 0.6}}, {0.1, 0.4, 0.6}, {0.2, 0.3, 0.5}}
+                 ],
+    
+    lists:foreach(fun({Res, A, B}) ->
+                          ?assertEqual(Res, 
+                                       quperl_octree:normalize(A,B))
+                  end, TestCases),
+
+    ok.

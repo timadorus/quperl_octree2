@@ -32,7 +32,7 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([new/0, new/1, new/2]).
+-export([new_volume/0, new_volume/1, new_volume/2]).
 
 
 -ifdef(TEST).
@@ -42,11 +42,11 @@
 
 %% new/0
 %% --------------------------------------------------------------------
-%% @doc create empty space for default max depth.
+%% @doc create empty volume for default max depth.
 %% 
--spec new() -> octree().
+-spec new_volume() -> octree().
 %% --------------------------------------------------------------------
-new() -> #octree{}.
+new_volume() -> #octree{}.
 
 
 
@@ -56,9 +56,9 @@ new() -> #octree{}.
 %%
 %% The function takes an integer value to create an empty structure of a given depth.
 %%
--spec new(MaxDepth :: pos_integer()) -> octree().
+-spec new_volume(MaxDepth :: pos_integer()) -> octree().
 %% --------------------------------------------------------------------
-new(MaxDepth) when is_integer(MaxDepth) -> #octree{max_depth = MaxDepth}.
+new_volume(MaxDepth) when is_integer(MaxDepth) -> #octree{max_depth = MaxDepth}.
 
 %% new/2
 %% --------------------------------------------------------------------
@@ -67,9 +67,9 @@ new(MaxDepth) when is_integer(MaxDepth) -> #octree{max_depth = MaxDepth}.
 %% The function takes an axis aligned bounding box (AABB) to define a space 
 %% to occupy part of the volume encompassed by the complete octree.
 %%
--spec new(Point1 :: vec_3d(), Point2 :: vec_3d()) -> octree().
+-spec new_volume(Point1 :: vec_3d(), Point2 :: vec_3d()) -> octree().
 %% --------------------------------------------------------------------
-new(Point1, Point2) ->
+new_volume(Point1, Point2) ->
     {MinPoint, MaxPoint} = normalize(Point1, Point2).
 
 %% creates an empty volume, with depth 64, if none is given
