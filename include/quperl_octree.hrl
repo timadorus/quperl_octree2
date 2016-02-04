@@ -17,6 +17,8 @@
 
 -type ot_child_code() :: 0|1|2|3|4|5|6|7.
 
+-type ot_node_list() :: list(ot_child_code).
+
 -define(DEFAULT_TIMEOUT, infinity).
 
 -type ot_m_code() :: non_neg_integer().
@@ -59,7 +61,7 @@
 
 -record(ot_volume, {
                  max_depth = ?DEFAULT_MAX_DEPTH :: non_neg_integer(),
-                 spaces    = []                 :: [ ot_m_code()
+                 spaces    = []                 :: [ ot_node_id()
                                                    | ot_morton_interval()
                                                    | ot_morton_node() 
                                                    ]

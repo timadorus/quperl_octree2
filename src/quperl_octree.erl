@@ -37,9 +37,9 @@
 
 -ifdef(TEST).
 %% export the private functions for testing only.
--export([normalize/2, to_node_id/2, to_node_list/1,
+-export([normalize/2, to_node_id/2, to_node_id/3, to_node_list/1,
          box_to_volume/2, filter_full_area/1,common_prefix/2,
-         first_node/1, rest_nodes/1, append_node/2,
+         is_equal/2, first_node/1, rest_nodes/1, append_node/2,
          xval/1, yval/1, zval/1, is_all_ones/1, is_all_zeroes/1,
          bit_count/1]).
 -endif.
@@ -386,7 +386,9 @@ zval(Val) -> ((Val band ?ZMult) div ?ZMult).
 
 %% bit_count/1
 %% --------------------------------------------------------------------
-%% @doc count the number of set bits (i.e the Hamming Weight)
+%% @doc count the number of set bits (i.e the Hamming Weight).
+%%
+%% This will only count the bits for integers smaller than 2^64
 %% see popcount_3 in http://en.wikipedia.org/wiki/Hamming_weight
 %%
 %% Originaly from: https://gist.github.com/gburd/4955104
@@ -441,7 +443,8 @@ normalize(_P1, _P2) ->
 %% The function will return the octree leaf node that contains the point
 %% given by the argument.
 %% @end
--spec to_node_id(Vec :: vec_3d(), MaxDepth :: non_neg_integer()) -> ot_node_id().
+-spec to_node_id(vec_3d() | ot_node_list(), 
+                 MaxDepth :: non_neg_integer()) -> ot_node_id().
 %% --------------------------------------------------------------------
 to_node_id(Val = {V,_,_}, _D) when (V < 0.0) or (V >= 1.0) ->
     throw({badarg, Val});
@@ -457,7 +460,28 @@ to_node_id({X,Y,Z}, Depth) ->
     Yl = trunc(Y*(1 bsl Depth)),
     Zl = trunc(Z*(1 bsl Depth)),
 
-    #ot_node_id{depth = Depth, x=Xl, y=Yl, z=Zl}.
+    #ot_node_id{depth = Depth, x=Xl, y=Yl, z=Zl};
+
+to_node_id(NodeList, Depth) when is_list(NodeList) ->
+    to_node_id(NodeList, #ot_node_id{}, Depth).
+
+
+%% to_node_id/3
+%% --------------------------------------------------------------------
+%% @private
+%% --------------------------------------------------------------------
+-spec to_node_id(PosList :: [ot_child_code()],
+                 #ot_node_id{}, 
+                 MaxDepth :: non_neg_integer()) -> #ot_node_id{}.
+%% --------------------------------------------------------------------
+to_node_id([], NodeId, _MaxDepth) -> NodeId;
+
+to_node_id([F|Rest], #ot_node_id{depth = D, x= X, y= Y, z=Z}, MaxDepth) ->
+    Shift = MaxDepth - (D + 1),
+    Xn = ((F band ?XMult) div ?XMult) bsl Shift,
+    Yn = ((F band ?YMult) div ?YMult) bsl Shift,
+    Zn = ((F band ?ZMult) div ?ZMult) bsl Shift,
+    to_node_id(Rest, #ot_node_id{depth = D + 1, x= X + Xn, y= Y + Yn, z=Z + Zn}, MaxDepth).
 
 %% to_node_list/1
 %% --------------------------------------------------------------------
@@ -504,8 +528,7 @@ first_node(Point) when is_record(Point, ot_node_id) ->
 
 rest_nodes(#ot_node_id{depth=0}) -> throw(zero_depth); 
 
-rest_nodes(Point = #ot_node_id{depth=Depth, x=X, y=Y, z=Z}) 
-  when is_record(Point, ot_node_id) ->
+rest_nodes(#ot_node_id{depth=Depth, x=X, y=Y, z=Z}) ->
     NewX = ((X band ?REST_MASK) bsl 1),
     NewY = ((Y band ?REST_MASK) bsl 1),
     NewZ = ((Z band ?REST_MASK) bsl 1),

@@ -69,6 +69,9 @@ if [ -d "${BASEDIR}/${PROJECT}_local" ]
 
 cp -a "${BASEDIR}/sage_git/${PROJECT}" "${BASEDIR}/${PROJECT}_local"
 
+# ensure that nginx can read the build data
+chmod a+rx "${BASEDIR}/${PROJECT}_local"
+
 pushd "${BASEDIR}/${PROJECT}_local"
 
 # remove eclipse fluff
@@ -76,6 +79,7 @@ rm -f ebin/*.beam ebin/quperl_octree.app
 
 rebar3 deps
 rebar3 eunit
+rebar3 cover
 rebar3 as test dialyzer
 
 rebar3 as prod compile
