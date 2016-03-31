@@ -517,8 +517,6 @@ first_node(Point) when is_record(Point, ot_node_id) ->
      ((Point#ot_node_id.z band ?FIRST_MASK) bsr ?FIRST_SHIFT) * ?ZMult).
 
 
--define(REST_MASK,(16#7fffffffffffffff)).
-
 %% rest_nodes/1
 %% --------------------------------------------------------------------
 %% @doc return all but the first element of a pos code
@@ -529,9 +527,9 @@ first_node(Point) when is_record(Point, ot_node_id) ->
 rest_nodes(#ot_node_id{depth=0}) -> throw(zero_depth); 
 
 rest_nodes(#ot_node_id{depth=Depth, x=X, y=Y, z=Z}) ->
-    NewX = ((X band ?REST_MASK) bsl 1),
-    NewY = ((Y band ?REST_MASK) bsl 1),
-    NewZ = ((Z band ?REST_MASK) bsl 1),
+    NewX = ((X band ?QUPOT_REST_MASK) bsl 1),
+    NewY = ((Y band ?QUPOT_REST_MASK) bsl 1),
+    NewZ = ((Z band ?QUPOT_REST_MASK) bsl 1),
     #ot_node_id{depth=Depth-1, x=NewX , y= NewY, z= NewZ}.
 
 %% xor_dim/3

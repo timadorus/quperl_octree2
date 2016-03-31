@@ -11,6 +11,11 @@
 %% use only 60 bit, as erlang can place this in single word on 64bit machines.
 -define(DEFAULT_MAX_DEPTH, 60).
 
+%% ((1 bsl (?DEFAULT_MAX_DEPTH-1)) bxor 16#FFFFFFFFFFFFFFFF...)
+
+%%-define(REST_MASK,(16#7fffffffffffffff)).  %% for 64 bit
+-define(QUPOT_REST_MASK,(16#7ffffffffffffff)).  %% for 60 bit
+
 -define(XMult, 4).
 -define(YMult, 2).
 -define(ZMult, 1).

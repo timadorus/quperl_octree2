@@ -48,19 +48,19 @@ unit_test_() ->
       setup,
       fun setup_env/0,
       fun takedown_env/1,
-      fun(_Args) -> [
-                    ?_test(test_normalize_nodes()),
-                    ?_test(test_normalize_points()),
-                    ?_test(test_to_node_id()),
-                    ?_test(test_to_node_list()),
-                    ?_test(test_specific_points()),
-                    ?_test(test_append_node()),
-                    ?_test(test_first_node()),
-                    ?_test(test_rest_nodes()),
-                    ?_test(test_node_id_bit_count()),
-                    ?_test(test_is_all_zeroes()),
-                    ?_test(test_is_all_ones())
-                   ]
+      fun(_Args) -> [ ?_test(test_normalize_nodes())
+                    , ?_test(test_normalize_points())
+                    , ?_test(test_to_node_id())
+                    , ?_test(test_to_node_list())
+                    , ?_test(test_specific_points())
+                    , ?_test(test_append_node())
+                    , ?_test(test_first_node())
+                    , ?_test(test_is_equal())
+                    , ?_test(test_rest_nodes())
+                    , ?_test(test_node_id_bit_count())
+                    , ?_test(test_is_all_zeroes())
+                    , ?_test(test_is_all_ones())
+                    ]
       end }.
 
 setup_env() -> {args}.
@@ -141,15 +141,38 @@ test_first_node() ->
 
     ok.
 
+test_is_equal() ->
+    NI1 = to_node_id([], ?DEFAULT_MAX_DEPTH),
+    ?assert(is_equal(NI1, NI1)),
+
+    NI2 = to_node_id([1], ?DEFAULT_MAX_DEPTH),
+    ?assert(is_equal(NI2, NI2)),
+
+    NI3 = to_node_id([1,2,3,4,5], ?DEFAULT_MAX_DEPTH),
+    ?assert(is_equal(NI3, NI3)),
+
+    ?assertNot(is_equal(NI1, NI2)),
+    ?assertNot(is_equal(NI2, NI1)),
+
+    ?assertNot(is_equal(NI1, NI3)),
+    ?assertNot(is_equal(NI3, NI1)),
+
+    NI4 = to_node_id([4], ?DEFAULT_MAX_DEPTH),
+    ?assert(is_equal(NI4, NI4)),
+
+    ?assertNot(is_equal(NI2, NI4)),
+    ?assertNot(is_equal(NI4, NI2)),
+
+    ok.
 
 test_rest_nodes() ->
 
-    ?debugFmt("~n[2,3,4]: ~p~n[1,2,3,4]: ~p~nrest([1,2,3,4]): ~p",
+    ?debugFmt("~ndefault Depth:~n[2,3,4]: ~p~n[1,2,3,4]: ~p~nrest([1,2,3,4]): ~p",
               [to_node_id([2,3,4], ?DEFAULT_MAX_DEPTH),
                to_node_id([1,2,3,4], ?DEFAULT_MAX_DEPTH),
                rest_nodes(to_node_id([1,2,3,4], ?DEFAULT_MAX_DEPTH))]),
 
-    ?debugFmt("~n[2,3,4]: ~p~n[1,2,3,4]: ~p~nrest([1,2,3,4]): ~p",
+    ?debugFmt("~nDepth 64:~n[2,3,4]: ~p~n[1,2,3,4]: ~p~nrest([1,2,3,4]): ~p",
               [to_node_id([2,3,4], 64),
                to_node_id([1,2,3,4], 64),
                rest_nodes(to_node_id([1,2,3,4], 64))]),
@@ -175,7 +198,8 @@ test_append_node() ->
     lists:foreach(fun({Result, List, New}) -> 
                           ?assertEqual(to_node_id(Result, ?DEFAULT_MAX_DEPTH), 
                                        append_node(to_node_id(List,?DEFAULT_MAX_DEPTH),
-                                                   New))
+                                                   New)),
+                          ok
                   end, TestCases),
 
     ok.
