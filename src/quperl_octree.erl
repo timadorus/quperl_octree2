@@ -41,7 +41,7 @@
          box_to_volume/2, filter_full_area/1,common_prefix/2,
          is_equal/2, first_node/1, rest_nodes/1, append_node/2,
          xval/1, yval/1, zval/1, is_all_ones/1, is_all_zeroes/1,
-         bit_count/1]).
+         bit_count/1, default_max_depth/0]).
 -endif.
 
 %% new/0
@@ -543,4 +543,13 @@ rest_nodes(#ot_node_id{depth=Depth, x=X, y=Y, z=Z}) ->
 xor_dim(Pos1, Pos2, x) -> ((Pos1 band ?XMult) bxor (Pos2 band ?XMult)) bsr 2;
 xor_dim(Pos1, Pos2, y) -> ((Pos1 band ?YMult) bxor (Pos2 band ?YMult)) bsr 1;
 xor_dim(Pos1, Pos2, z) -> ((Pos1 band ?ZMult) bxor (Pos2 band ?ZMult)) bsr 0.
+
+%% default_max_depth/0
+%% --------------------------------------------------------------------
+%% @private
+%% @doc return the default max depth. 
+%% this is required for building binary expressions.
+%% @end
+-spec default_max_depth() -> pos_integer().
+default_max_depth() -> ?DEFAULT_MAX_DEPTH.
 

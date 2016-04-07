@@ -25,7 +25,7 @@
         box_to_volume/2, filter_full_area/1,common_prefix/2,
         is_equal/2, first_node/1, rest_nodes/1, append_node/2,
         xval/1, yval/1, zval/1, is_all_ones/1, is_all_zeroes/1,
-        bit_count/1]).
+        bit_count/1, default_max_depth/0]).
 
 %%
 %% Fixtures
@@ -60,6 +60,7 @@ unit_test_() ->
                     , ?_test(test_node_id_bit_count())
                     , ?_test(test_is_all_zeroes())
                     , ?_test(test_is_all_ones())
+                    , ?_test(test_default_max_depth())
                     ]
       end }.
 
@@ -310,3 +311,9 @@ test_to_node_id() ->
                                                     ?DEFAULT_MAX_DEPTH))),
 
     ok. 
+
+
+test_default_max_depth() ->
+    ?assertEqual(?DEFAULT_MAX_DEPTH, default_max_depth()),
+    
+    ok.
