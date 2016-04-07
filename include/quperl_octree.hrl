@@ -22,7 +22,7 @@
 
 -type ot_child_code() :: 0|1|2|3|4|5|6|7.
 
--type ot_node_list() :: list(ot_child_code).
+-type ot_node_list() :: list(ot_child_code()).
 
 -define(DEFAULT_TIMEOUT, infinity).
 

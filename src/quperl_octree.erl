@@ -300,7 +300,7 @@ is_equal(_,_) -> false.
 %% @doc return true if the subtree contains only 0's in its components.
 %% @end
 %% --------------------------------------------------------------------
--spec is_all_zeroes(Point :: #ot_node_id{}) -> true|false.
+-spec is_all_zeroes(Point :: ot_node_id()) -> boolean().
 %% --------------------------------------------------------------------
 is_all_zeroes(#ot_node_id{x=0,y=0,z=0}) -> true;
 is_all_zeroes(Val) when is_record(Val, ot_node_id) -> false.
@@ -315,7 +315,7 @@ is_all_zeroes(Val) when is_record(Val, ot_node_id) -> false.
 %%
 %% @end
 %% --------------------------------------------------------------------
--spec is_all_ones(Point :: #ot_node_id{}) -> true|false.
+-spec is_all_ones(Point :: #ot_node_id{}) -> boolean().
 %% --------------------------------------------------------------------
 is_all_ones(#ot_node_id{depth=D, x=X, y=Y, z=Z}) ->
     Sum = bit_count(X) + bit_count(Y) + bit_count(Z),    
