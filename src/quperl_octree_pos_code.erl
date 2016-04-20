@@ -1,8 +1,8 @@
 %% @author sage
 %% @doc compute and manage a binary position code for a node in an octree.
 %%
-%% <p>Functions to compute and modify an position code, which identifies a specific 
-%% node in an octree and is encoded as a binary string, to be used as a key for 
+%% <p>Functions to compute and modify an position code, which identifies a specific
+%% node in an octree and is encoded as a binary string, to be used as a key for
 %% object lookups.
 %%
 %% <p>The binary is structured as follows:
@@ -17,8 +17,8 @@
 %% <p>DEFAULT_MAX_DEPTH currently is fixed at 60, allowing the smallest
 %% node of the octree to be 2^60 ~= 10^24 times smaller than the space
 %% encompassed by the whole tree.</p>
-%%  
-%% <p>The values for each coordinate c of the position and size are assumed to 
+%%
+%% <p>The values for each coordinate c of the position and size are assumed to
 %% be normalized to be within the interval ( 0.0 <= c < 1.0 )</p>
 %% @end
 
@@ -37,7 +37,7 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([is_pos_code/1, to_pos_code/1]).
+-export([is_pos_code/1, to_pos_code/1, to_pos_code/2]).
 
 %% is_pos_code/1
 %% --------------------------------------------------------------------
@@ -49,10 +49,10 @@
 %% --------------------------------------------------------------------
 is_pos_code(<<Depth:8,
               _PathCode:(3*?DEFAULT_MAX_DEPTH)/bits,
-              _Padding:((8-((3*?DEFAULT_MAX_DEPTH) rem 8)) rem 8)/bits>>) 
-  when Depth >= ?DEFAULT_MAX_DEPTH -> false; 
+              _Padding:((8-((3*?DEFAULT_MAX_DEPTH) rem 8)) rem 8)/bits>>)
+  when Depth >= ?DEFAULT_MAX_DEPTH -> false;
 
-is_pos_code(<<_Depth:8, 
+is_pos_code(<<_Depth:8,
               _PathCode:(3*?DEFAULT_MAX_DEPTH)/bits,
               _Padding:((8-((3*?DEFAULT_MAX_DEPTH) rem 8)) rem 8)/bits>>)  -> true;
 
@@ -66,14 +66,23 @@ is_pos_code(_Other) -> false.
 %% @end
 -spec to_pos_code(#ot_node_id{}) -> pos_code().
 %% --------------------------------------------------------------------
-to_pos_code(NId) ->
+to_pos_code(NId) -> to_pos_code(NId, ?DEFAULT_MAX_DEPTH).
+
+%% to_pos_code/2
+%% --------------------------------------------------------------------
+%% @doc create pos code from node specification.
+%%
+%% @end
+-spec to_pos_code(#ot_node_id{}, MaxDepth :: pos_integer()) -> pos_code().
+%% --------------------------------------------------------------------
+to_pos_code(NId, MaxDepth) ->
     Spec = quperl_octree:to_node_list(NId),
-    
+
     {Depth, PosCode} = lists:foldl(fun add_pos_code/2, {0,<<>>}, Spec),
-    
+
     <<Depth,
-      PosCode/bits, 0:((?DEFAULT_MAX_DEPTH-Depth)*3),
-      0:((8-((3*?DEFAULT_MAX_DEPTH) rem 8)) rem 8)>>.
+      PosCode/bits, 0:((MaxDepth-Depth)*3),
+      0:((8-((3*MaxDepth) rem 8)) rem 8)>>.
 
 
 
