@@ -32,12 +32,13 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([new_volume/0, new_volume/1, new_volume/2]).
+-export([new_volume/0, new_volume/1, new_volume/2, 
+         to_node_id/1, to_node_id/2]).
 
 
 -ifdef(TEST).
 %% export the private functions for testing only.
--export([normalize/2, to_node_id/1, to_node_id/2, to_node_id/3,
+-export([normalize/2, to_node_id/3,
          to_node_list/1, box_to_volume/2, filter_full_area/1,common_prefix/2,
          is_equal/2, first_node/1, rest_nodes/1, append_node/2,
          xval/1, yval/1, zval/1, is_all_ones/1, is_all_zeroes/1,
@@ -83,6 +84,47 @@ new_volume(Point1, Point2)when is_record(Point1, ot_node_id)
 new_volume(P1 = {_X1, _Y1, _Z1}, P2 = {_X2, _Y2, _Z2}) ->
     new_volume(to_node_id(P1, ?DEFAULT_MAX_DEPTH),
                to_node_id(P2, ?DEFAULT_MAX_DEPTH)).
+
+
+%% to_node_id/1
+%% --------------------------------------------------------------------
+%% @doc create a node identifier from a 3D Vector, using default depth.
+%%
+%% The function will return the octree leaf node that contains the point
+%% given by the argument.
+%% @end
+-spec to_node_id(vec_3d() | ot_node_list()) -> ot_node_id().
+%% --------------------------------------------------------------------
+to_node_id(Val) -> to_node_id(Val, ?DEFAULT_MAX_DEPTH).
+
+%% to_node_id/2
+%% --------------------------------------------------------------------
+%% @doc create a node identifier from a 3D Vector.
+%%
+%% The function will return the octree leaf node that contains the point
+%% given by the argument.
+%% @end
+-spec to_node_id(vec_3d() | ot_node_list(),
+                 MaxDepth :: non_neg_integer()) -> ot_node_id().
+%% --------------------------------------------------------------------
+to_node_id(Val = {V,_,_}, _D) when (V < 0.0) or (V >= 1.0) ->
+    throw({badarg, Val});
+
+to_node_id(Val = {_,V,_}, _D) when (V < 0.0) or (V >= 1.0) ->
+    throw({badarg, Val});
+
+to_node_id(Val = {_,_,V}, _D) when (V < 0.0) or (V >= 1.0) ->
+    throw({badarg, Val});
+
+to_node_id({X,Y,Z}, Depth) ->
+    Xl = trunc(X*(1 bsl Depth)),
+    Yl = trunc(Y*(1 bsl Depth)),
+    Zl = trunc(Z*(1 bsl Depth)),
+
+    #ot_node_id{depth = Depth, x=Xl, y=Yl, z=Zl};
+
+to_node_id(NodeList, Depth) when is_list(NodeList) ->
+    to_node_id(NodeList, #ot_node_id{}, Depth).
 
 
 %% ====================================================================
@@ -434,47 +476,6 @@ normalize({X1, Y1, Z1},{X2, Y2, Z2}) ->
 
 normalize(_P1, _P2) ->
     throw(unsupported_point_type_combination).
-
-
-%% to_node_id/1
-%% --------------------------------------------------------------------
-%% @doc create a node identifier from a 3D Vector, using default depth.
-%%
-%% The function will return the octree leaf node that contains the point
-%% given by the argument.
-%% @end
--spec to_node_id(vec_3d() | ot_node_list()) -> ot_node_id().
-%% --------------------------------------------------------------------
-to_node_id(Val) -> to_node_id(Val, ?DEFAULT_MAX_DEPTH).
-
-%% to_node_id/2
-%% --------------------------------------------------------------------
-%% @doc create a node identifier from a 3D Vector.
-%%
-%% The function will return the octree leaf node that contains the point
-%% given by the argument.
-%% @end
--spec to_node_id(vec_3d() | ot_node_list(),
-                 MaxDepth :: non_neg_integer()) -> ot_node_id().
-%% --------------------------------------------------------------------
-to_node_id(Val = {V,_,_}, _D) when (V < 0.0) or (V >= 1.0) ->
-    throw({badarg, Val});
-
-to_node_id(Val = {_,V,_}, _D) when (V < 0.0) or (V >= 1.0) ->
-    throw({badarg, Val});
-
-to_node_id(Val = {_,_,V}, _D) when (V < 0.0) or (V >= 1.0) ->
-    throw({badarg, Val});
-
-to_node_id({X,Y,Z}, Depth) ->
-    Xl = trunc(X*(1 bsl Depth)),
-    Yl = trunc(Y*(1 bsl Depth)),
-    Zl = trunc(Z*(1 bsl Depth)),
-
-    #ot_node_id{depth = Depth, x=Xl, y=Yl, z=Zl};
-
-to_node_id(NodeList, Depth) when is_list(NodeList) ->
-    to_node_id(NodeList, #ot_node_id{}, Depth).
 
 
 %% to_node_id/3
