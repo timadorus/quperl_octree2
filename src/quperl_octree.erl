@@ -33,13 +33,14 @@
 %% API functions
 %% ====================================================================
 -export([new_volume/0, new_volume/1, new_volume/2, 
-         to_node_id/1, to_node_id/2]).
+         to_node_id/1, to_node_id/2,
+         to_node_list/1]).
 
 
 -ifdef(TEST).
 %% export the private functions for testing only.
 -export([normalize/2, to_node_id/3,
-         to_node_list/1, box_to_volume/2, filter_full_area/1,common_prefix/2,
+         box_to_volume/2, filter_full_area/1,common_prefix/2,
          is_equal/2, first_node/1, rest_nodes/1, append_node/2,
          xval/1, yval/1, zval/1, is_all_ones/1, is_all_zeroes/1,
          bit_count/1, default_max_depth/0]).
