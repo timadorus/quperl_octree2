@@ -50,7 +50,7 @@
 is_pos_code(<<Depth:8,
               _PathCode:(3*?DEFAULT_MAX_DEPTH)/bits,
               _Padding:((8-((3*?DEFAULT_MAX_DEPTH) rem 8)) rem 8)/bits>>)
-  when Depth >= ?DEFAULT_MAX_DEPTH -> false;
+  when Depth > ?DEFAULT_MAX_DEPTH -> false;
 
 is_pos_code(<<_Depth:8,
               _PathCode:(3*?DEFAULT_MAX_DEPTH)/bits,

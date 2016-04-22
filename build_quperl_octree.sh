@@ -4,7 +4,8 @@
 #
 
 PROJECT="quperl_octree2"
-BASEDIR="/home/ubuntu"
+BASEDIR=`dirname $0`
+WORKDIR=`pwd`
 
 function agent_notice {
     cat <<-EOF
@@ -62,20 +63,20 @@ if [ $cpu_count -lt 2 ]
 #      START BUILD                      #
 #########################################
 
-if [ -d "${BASEDIR}/${PROJECT}_local" ]
+if [ -d "${WORKDIR}/${PROJECT}_local" ]
  then
-  rm -rf "${BASEDIR}/${PROJECT}_local"
+  rm -rf "${WORKDIR}/${PROJECT}_local"
  fi
 
-cp -a "${BASEDIR}/sage_git/${PROJECT}" "${BASEDIR}/${PROJECT}_local"
+cp -a "${BASEDIR}" "${WORKDIR}/${PROJECT}_local"
 
 # ensure that nginx can read the build data
-chmod a+rx "${BASEDIR}/${PROJECT}_local"
+chmod a+rx "${WORKDIR}/${PROJECT}_local"
 
-pushd "${BASEDIR}/${PROJECT}_local"
+pushd "${WORKDIR}/${PROJECT}_local"
 
 # remove eclipse fluff
-rm -f ebin/*.beam ebin/quperl_octree.app
+rm -f ebin/*.beam ebin/*.app
 
 rebar3 deps
 rebar3 eunit
