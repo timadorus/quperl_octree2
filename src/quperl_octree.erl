@@ -32,9 +32,9 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([new_volume/0, new_volume/1, new_volume/2, 
+-export([new_volume/0, new_volume/1, new_volume/2,
          to_node_id/1, to_node_id/2,
-         to_node_list/1]).
+         to_node_list/1, parent/1]).
 
 
 -ifdef(TEST).
@@ -43,7 +43,9 @@
          box_to_volume/2, filter_full_area/1,common_prefix/2,
          is_equal/2, first_node/1, rest_nodes/1, append_node/2,
          xval/1, yval/1, zval/1, is_all_ones/1, is_all_zeroes/1,
-         bit_count/1, default_max_depth/0, split/4, xor_dim/3]).
+         bit_count/1, default_max_depth/0, split/4, xor_dim/3,
+         sweep/1, inner/1
+        ]).
 -endif.
 
 %% new/0
@@ -66,7 +68,7 @@ new_volume() -> #ot_volume{}.
 %% --------------------------------------------------------------------
 new_volume(MaxDepth) when is_integer(MaxDepth) -> #ot_volume{max_depth = MaxDepth};
 
-new_volume(NodeList) when is_list(NodeList) -> 
+new_volume(NodeList) when is_list(NodeList) ->
     #ot_volume{max_depth = ?DEFAULT_MAX_DEPTH, spaces=NodeList}.
 
 
@@ -132,17 +134,45 @@ to_node_id(NodeList, Depth) when is_list(NodeList) ->
     to_node_id(NodeList, #ot_node_id{}, Depth).
 
 
+%% parent/1
+%% --------------------------------------------------------------------
+%% @doc get parent of current node.
+%%
+%% This function will return the same result as inner/1, but the parent of
+%% of the root is the root itself.
+%%
+%% @see quperl_octree_node_id:inner/1
+%%
+%% @end
+-spec parent(Point :: #ot_node_id{}) -> #ot_node_id{} | no_return().
+%% --------------------------------------------------------------------
+parent(#ot_node_id{depth=0}) -> #ot_node_id{};
+
+parent(Point) -> inner(Point).
+
+
 %% ====================================================================
 %% Internal functions
 %% ====================================================================
+
+%% to_node_id/4
+%% --------------------------------------------------------------------
+%% @doc create ot_node_id structure from components.
+%% @end
+-spec to_node_id(Depth :: non_neg_integer(), X :: non_neg_integer(),
+                  Y :: non_neg_integer(), Z :: non_neg_integer()) ->
+           #ot_node_id{}.
+%% --------------------------------------------------------------------
+to_node_id(Depth, X, Y, Z) -> #ot_node_id{depth=Depth, x=X, y=Y, z=Z}.
+
 
 %% box_to_volume/2
 %% --------------------------------------------------------------------
 %% @doc convert an axis aligned bounding box to a list of node ids.
 %% @end
 %% --------------------------------------------------------------------
--spec box_to_volume(Inlist :: [{ot_node_id(), ot_node_id()}], 
-                    OutList :: [{ot_node_id(), ot_node_id()}]) -> 
+-spec box_to_volume(Inlist :: [{ot_node_id(), ot_node_id()}],
+                    OutList :: [{ot_node_id(), ot_node_id()}]) ->
           [ot_node_id()].
 box_to_volume([], Result) -> Result;
 
@@ -152,12 +182,12 @@ box_to_volume([{P1,P2}| Rest], Result) ->
 
         false -> SplitList = split([], ?DEFAULT_MAX_DEPTH, P1, P2),
 
-                 ?debugFmt("SubTrees Len: ~p", [length(SplitList)]),
+%%                  ?debugFmt("SubTrees Len: ~p", [length(SplitList)]),
 
                  {SplitList2, Areas} = filter_full_area(SplitList),
 
-                 ?debugFmt("Rest Len: ~p, SplitList Len: ~p, Result Len: ~p, Areas Len: ~p",
-                           [length(Rest), length(SplitList2), length(Result), length(Areas)]),
+%%                  ?debugFmt("Rest Len: ~p, SplitList Len: ~p, Result Len: ~p, Areas Len: ~p",
+%%                            [length(Rest), length(SplitList2), length(Result), length(Areas)]),
 
                  box_to_volume(Rest ++ SplitList2, Result ++ Areas)
     end.
@@ -187,7 +217,7 @@ split(TreePrefix, RestDepth, P1, P2) ->
             List1 = split_borders([{P1,P2}],x),
             List2 = split_borders(List1,y),
             List3 = split_borders(List2,z),
-            
+
             lists:map(fun({Node1, Node2}) ->
                               {prepend_path(Node1, TreePrefix),
                                prepend_path(Node2, TreePrefix)}
@@ -570,3 +600,62 @@ default_max_depth() -> ?DEFAULT_MAX_DEPTH.
 
 
 
+%% previous/1
+%% --------------------------------------------------------------------
+%% @doc get previos node along morton order.
+%%
+%% Function will return all path elements except the last (i.e the leaf node)
+%%
+%% @end
+-spec previous(Node :: #ot_node_id{}) -> #ot_node_id{}.
+previous(Node) ->
+    {Parent, Leaf} = split_leaf(Node),
+    case Leaf of
+        0 -> add_child(previous(inner(node)), 7);
+        L -> add_child(inner(Node), L-1)
+    end.
+
+
+
+%% inner/1
+%% --------------------------------------------------------------------
+%% @doc get path of inner nodes.
+%%
+%% Function will return all path elements except the last (i.e the leaf node)
+%%
+%% @end
+-spec inner(Point :: #ot_node_id{}) -> #ot_node_id{} | no_return().
+%% --------------------------------------------------------------------
+inner(#ot_node_id{depth=0}) -> throw(zero_depth);
+
+inner(#ot_node_id{depth=Depth, x=X, y=Y, z=Z}) ->
+    Pos = (?DEFAULT_MAX_DEPTH - Depth),
+    Mask = (?RIGHT_SHIFT_MASK bxor (1 bsl Pos)),
+
+    to_node_id(Depth-1, X band Mask, Y band Mask, Z band Mask).
+
+
+%% sweep/1
+%% --------------------------------------------------------------------
+%% @doc collapse nodes in list that completely cover a node.
+%%
+%% PRE: the nodes are sorted according to the Morton order.
+%%
+%% the function will replace all nodes that constituate a complete node by this node.
+%%
+%% @private
+%% @end
+-spec sweep(Nodes :: [#ot_node_id{}] ) -> [#ot_node_id{}].
+%% --------------------------------------------------------------------
+sweep(Nodes) ->
+    {_Last, Carry, Ret} = lists:foldl(fun(Elem, {Last, Carry, Out}) ->
+                                             case previous(Elem) of
+                                                 Last ->
+                                                     case length(Carry) of
+                                                         7 -> {nil, [], Out ++ inner(Elem)};
+                                                         _ -> {Elem, Carry ++ [Elem], Out}
+                                                     end;
+                                                 _ -> {Elem, [Elem], Out ++ [Last]}
+                                             end
+                                     end, {nil, [], []}, Nodes),
+Ret ++ Carry.

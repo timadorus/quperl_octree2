@@ -9,7 +9,7 @@
 %% Tests TODO: new_volume/2
 %%             common_prefix
 %%             filter_full_area, box_to_volume, xval, yval, zval,
-%%             
+%%
 
 -module(quperl_octree_tests).
 
@@ -57,6 +57,9 @@ unit_test_() ->
                     , ?_test(test_default_max_depth())
                     , ?_test(test_xor_dim())
                     , ?_test(test_split())
+                    , ?_test(test_sweep())
+                    , ?_test(test_inner())
+                    , ?_test(test_common_prefix())
                     , ?_test(test_filter_full_area())
                     , ?_test(test_box_to_volume())
                     ]
@@ -89,30 +92,42 @@ test_new_volume2(_Args) ->
                  {[],{0.479, 0.499, 0.479}, {0.501, 0.501, 0.501}},
                  {[],{0.499, 0.499, 0.499}, {0.501, 0.501, 0.501}},
                  {{badarg, val}, {0.0, 0.0, 0.0}, {2.0, 2.0, 2.0}}],
-    
+
     lists:foreach(fun({R,P1, P2}) ->
                           N1 =quperl_octree:to_node_id(P1),
                           N2 =quperl_octree:to_node_id(P2),
                           L1 = quperl_octree:box_to_volume([{N1,N2}],[]),
                           ?debugFmt("~nP1: ~p~nP2: ~p~nbox: ~p",
-                                    [quperl_octree:to_node_list(N1), 
-                                     quperl_octree:to_node_list(N2), 
+                                    [quperl_octree:to_node_list(N1),
+                                     quperl_octree:to_node_list(N2),
                                      L1]),
                           ?assertEqual(R, catch quperl_octree:new_volume(P1, P2))
                           end, TestCases),
-    
+
     ok.
 
 
+test_inner() ->
+
+%%     ?debugFmt("~n     [1,2,3]: ~p~ninner([1,2,3,4]): ~p",[new_node_id([1,2,3]),
+%%                                                           inner(new_node_id([1,2,3,4]))]),
+
+    ?assert(is_equal(new_node_id([1,2,3]),inner(new_node_id([1,2,3,4])))),
+    ?assertThrow(zero_depth, inner(new_node_id([]))),
+
+    ok.
+
 test_box_to_volume() ->
-    
-    TestVals = [ {[], foo, foo}
-               , {[1,2], bar, bar}
+
+    TestVals = [ {[], [quperl_octree:to_node_id([1])], [[1]]}
+               , {[{quperl_octree:to_node_id([1,0]),
+                    quperl_octree:to_node_id([1,7])}], [],
+                  [[1]]}
                ],
-    lists:foreach(fun({L,R, Out}) -> 
-        ?assertEqual(Out, quperl_octree:box_to_volume(L, R))
+    lists:foreach(fun({L,R, Out}) ->
+        ?assertEqual(Out, as_node_list(quperl_octree:box_to_volume(L, R)))
                           end, TestVals),
-    
+
     ok.
 
 
@@ -133,7 +148,7 @@ test_filter_full_area() ->
               {[{[3,1,1],[3,1,7]},{[3,1,0],[3,1,7]}],
                [{[3,1,1],[3,1,7]}],
                [[3,1]]},
-              {[{[3,4,5,0],[3,4,5,0]},  % filter_full_area does not sweep, but must retain sort order.
+              {[{[3,4,5,0],[3,4,5,0]},  % this function does not sweep, but must maintain sort order
                 {[3,4,5,1],[3,4,5,1]},
                 {[3,4,5,2],[3,4,5,2]},
                 {[3,4,5,3],[3,4,5,3]},
@@ -151,27 +166,126 @@ test_filter_full_area() ->
                 [3,4,5,6],
                 [3,4,5,7]]}
              ],
-    
+
     lists:foreach(fun({In, Split, Areas}) ->
-                          
-                          InNodes = lists:map(fun({P1, P2}) -> {quperl_octree:to_node_id(P1), 
-                                                                quperl_octree:to_node_id(P2)} end, 
+
+                          InNodes = lists:map(fun({P1, P2}) -> {quperl_octree:to_node_id(P1),
+                                                                quperl_octree:to_node_id(P2)} end,
                                               In),
-                          
+
                           {SplitResult, AreaResult} = quperl_octree:filter_full_area(InNodes),
-                          ?assertEqual({Split,Areas}, 
-                                       {as_node_list(SplitResult), 
+                          ?assertEqual({Split,Areas},
+                                       {as_node_list(SplitResult),
                                         as_node_list(AreaResult)})
                           end, Inputs),
 
     ok.
+
+
+test_sweep() ->
+
+    Inputs = [{[],[]},
+              {[[1,0]],
+               [[1,0]]},
+              {[[1,0],[1,1]],
+               [[1,0],[1,1]]},
+              {[[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[1,7]],
+               [[1]]},
+              {[[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[1,7],[2,0]],
+               [[1],[2,0]]},
+              {[[1,0,1],[1,1,1],[1,2,1],[1,3,1],[1,4,1],[1,5,1],[1,6,1],[1,7,1]],
+               [[1,0,1],[1,1,1],[1,2,1],[1,3,1],[1,4,1],[1,5,1],[1,6,1],[1,7,1]]},
+              {[[1,0,0],[1,1,0],[1,2,0],[1,3,0],[1,4,0],[1,5,0],[1,6,0],[1,7,0]],
+               [[1,0,0],[1,1,0],[1,2,0],[1,3,0],[1,4,0],[1,5,0],[1,6,0],[1,7,0]]},
+              {[[1,0,0],[1,1,1],[1,2,2],[1,3,3],[1,4,4],[1,5,5],[1,6,6],[1,7,7]],
+               [[1,0,0],[1,1,1],[1,2,2],[1,3,3],[1,4,4],[1,5,5],[1,6,6],[1,7,7]]},
+              {[[1,0,0],[1,1,1],[1,2,2],[1,3,3],[1,3,4],[1,5,5],[1,6,6],[1,7,7]],
+               [[1,0,0],[1,1,1],[1,2,2],[1,3,3],[1,3,4],[1,5,5],[1,6,6],[1,7,7]]}
+             ],
+
+    lists:foreach(fun({In, Out}) ->
+                          ?assertEqual(Out, quperl_octree:sweep(In))
+                          end, Inputs),
+
+    ok.
+test_common_prefix() ->
+
+        Inputs = [ {[0],[0],[0],[],[]}
+                 , {[3,1,6],[3,1,2], [3,1],[6],[2]}
+                 ],
+
+    lists:foreach(fun({Point1,Point2,Pre,Post1,Post2}) ->
+
+                          ?assertEqual({quperl_octree:to_node_id(Pre),
+                                        quperl_octree:to_node_id(Post1),
+                                        quperl_octree:to_node_id(Post2)},
+                                       quperl_octree:common_prefix(quperl_octree:to_node_id(Point1), quperl_octree:to_node_id(Point2)))
+
+                          end, Inputs),
+
+        Inputs2 = [{{0.585702840753962, 0.8471973103830974, 0.7459485676749666},
+                    {1.0e-6,1.0e-6,1.0e-6},
+                    [7,2,1,7,3,5,1,4,7,7,7,5,0,1,1,2]}, % depth = 16
+
+                   {{0.000001, 0.000001, 0.000001},
+                    {0.9999, 0.9999, 0.9999},
+                    []},
+
+                   {{0.1, 0.1, 0.1},
+                    {0.16, 0.16, 0.16},
+                    [0]},
+
+                   {{0.5, 0.5, 0.5},
+                    {0.26, 0.26, 0.26},
+                    [7]},
+
+                   {{0.1, 0.1, 0.1},
+                    {0.01, 0.01, 0.01},
+                    [0,0,0,7,7]},
+
+                   {{0.1, 0.2, 0.3},
+                    {0.01, 0.01, 0.01},
+                    [0,1,2,6,5]},
+
+                   {{0.01, 0.01, 0.01},
+                    {0.5, 0.5, 0.5},
+                    []},
+
+                   {{1.0e-7, 1.0e-7, 1.0e-7},
+                    {1.0e-6, 1.0e-6, 1.0e-6},
+                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},  % depth = 19
+
+                   {{0.01, 0.01, 0.01},
+                    {0.1, 0.2, 0.3},
+                    [0]},
+
+                   {{0.01, 0.01, 0.01},
+                    {0.0, 0.0, 0.0},
+                    [0,0,0,0,0,0,7,0,7,0,
+                     0,0,7,7,7,7,0,7,0,7,
+                     7,7,0,0,0,0,7,0,7,0,
+                     0,0,7,7,7,7,0,7,0,7,
+                     7,7,0,0,0,0,7,0,7,0,
+                     0,0,7,7,7,7,0,7,7,0]}   % depth = DEFAULT_MAX_DEPTH
+                  ],
+
+        lists:foreach(fun({Position = {P1, P2, P3}, {B1, B2, B3}, ExpectedAC}) ->
+                              {Pre, _R1, _R2} =
+                                  quperl_octree:common_prefix(quperl_octree:to_node_id(Position),
+                                                              quperl_octree:to_node_id({P1 + B1, P2 + B2, P3 + B3})),
+                              ?assertEqual(ExpectedAC, quperl_octree:to_node_list(Pre))
+
+                      end, Inputs2),
+
+    ok.
+
 
 %% // does not have test for length(TreePrefix) == MaxDepth, as this would mean
 %% // that P1 and P2 are equal
 %% split(TreePrefix, RestDepth,P1, P2):
 %%   F1 = first(P1)
 %%   F2 = first(P2)
-%%   
+%%
 %%   if F1 == F2
 %%     R1 = rest(P1)
 %%     R2 = rest(R2)
@@ -182,21 +296,21 @@ test_filter_full_area() ->
 %%     split_list = split_borders(split_list,z)
 %%     return prepend_each(split_list, TreePrefix)  # returns 2-8 areas
 %%
-%% This function will not convert tuples of (P1,P2) with P1 == P2 into 
+%% This function will not convert tuples of (P1,P2) with P1 == P2 into
 %% node ids, this should be done by the calling function.
 %%
-test_split() -> 
+test_split() ->
     TestVals = [ %% {[0],[0]} excluded as it would be P1 == P2, excluded by precondition
                 {[0],[1],   [{[0],[0]}, {[1],[1]} ]},
                 {[0],[2],   [{[0],[0]}, {[2],[2]} ]},
-                {[0],[3],   
+                {[0],[3],
                  [{[0],[0]}, {[1],[1]}, {[2],[2]}, {[3],[3]} ]},
                 {[0],[4],   [{[0],[0]}, {[4],[4]} ]},
-                {[0],[5],   
+                {[0],[5],
                  [{[0],[0]}, {[1],[1]}, {[4],[4]}, {[5],[5]} ]},
-                {[0],[6],   
+                {[0],[6],
                  [{[0],[0]}, {[2],[2]}, {[4],[4]}, {[6],[6]} ]},
-                {[0],[7],   
+                {[0],[7],
                  [{[0],[0]}, {[1],[1]}, {[2],[2]}, {[3],[3]},
                   {[4],[4]}, {[5],[5]}, {[6],[6]}, {[7],[7]} ]},
                 {[2,0],[2,1],
@@ -214,7 +328,7 @@ test_split() ->
                   {[5,3,2,0],[5,3,2,0]},
                   {[5,3,2,1],[5,3,2,1]}
                  ]},
-                {[1,2,3,4], [7,6,5,4], 
+                {[1,2,3,4], [7,6,5,4],
                  [
                   {[1,2,3,4],[1,6,7,6]},
                   {[3,0,1,4],[3,6,5,4]},
@@ -235,7 +349,7 @@ do_test_split({L1, L2, Expected}) ->
     timer:sleep(100),
 
     ?assertEqual(Expected,as_node_list(Result)),
-    
+
     ok.
 
 
@@ -476,27 +590,27 @@ test_default_max_depth() ->
 
 
 
-test_xor_dim() -> 
+test_xor_dim() ->
     TestVals = [{0, 1, 1, z},
                 {1, 0, 1, z},
                 {1, 1, 0, z},
                 {0, 0, 0, z},
-                
+
                 {0, 0, 2, z},
                 {0, 0, 4, z},
                 {0, 2, 2, z},
                 {0, 4, 4, z},
-                
+
                 {0, 2, 2, y},
                 {1, 0, 2, y},
                 {1, 2, 0, y},
                 {0, 0, 0, y},
-                
+
                 {0, 4, 4, x},
                 {1, 0, 4, x},
                 {1, 4, 0, x},
                 {0, 0, 0, x},
-                
+
                 {1, 6, 7, z},
                 {1, 5, 7, y},
                 {1, 3, 7, x}],
@@ -510,17 +624,17 @@ test_xor_dim() ->
 
 %% @doc convert lists of lists of node_ids into node code lists
 %% @private
--spec as_node_list(#ot_node_id{} | [#ot_node_id{}] | [{#ot_node_id{}, #ot_node_id{}}]) -> 
+-spec as_node_list(#ot_node_id{} | [#ot_node_id{}] | [{#ot_node_id{}, #ot_node_id{}}]) ->
           [ot_child_code()] | [ [ot_child_code()] ] | [{[ot_child_code()], [ot_child_code()]}].
 
 as_node_list([]) -> [];
 
-as_node_list([First|Rest]) when is_list(First) -> 
+as_node_list([First|Rest]) when is_list(First) ->
     [ as_node_list(First) | as_node_list(Rest) ];
 
-as_node_list([P1|Rest]) when is_record(P1, ot_node_id) -> 
+as_node_list([P1|Rest]) when is_record(P1, ot_node_id) ->
    [ quperl_octree:to_node_list(P1) | as_node_list(Rest)];
 
-as_node_list([{P1, P2}|Rest]) -> 
+as_node_list([{P1, P2}|Rest]) ->
    [{quperl_octree:to_node_list(P1), quperl_octree:to_node_list(P2)} | as_node_list(Rest)].
-    
+
