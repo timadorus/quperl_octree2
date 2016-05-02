@@ -10,6 +10,9 @@
 
 %% use only 60 bit, as erlang can place this in single word on 64bit machines.
 -define(DEFAULT_MAX_DEPTH, 60).
+%% NOTE: these masks have to be exactly as long as the max depth
+-define(RIGHT_BASE_MASK,  (16#7ffffffffffffff)).
+-define(RIGHT_SHIFT_MASK, (16#fffffffffffffff)).
 
 %% ((1 bsl (?DEFAULT_MAX_DEPTH-1)) bxor 16#FFFFFFFFFFFFFFFF...)
 

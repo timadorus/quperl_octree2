@@ -46,11 +46,11 @@ test_is_pos_code() ->
     ok.
 
 do_is_pos_code_check({ok, _P, _B, _ExpectedAC, PC, _Parent}) ->
-    ?debugFmt("expect true for ~p",[PC]),
+%%     ?debugFmt("expect true for ~p",[PC]),
     ?assertEqual(true, is_pos_code(PC));
 
 do_is_pos_code_check({_S, _P, _B, _ExpectedAC, PC, _Parent}) ->
-    ?debugFmt("expect false for ~p",[PC]),
+%%     ?debugFmt("expect false for ~p",[PC]),
     ?assertEqual(false, is_pos_code(PC)).
 
 

@@ -43,7 +43,7 @@
          box_to_volume/2, filter_full_area/1,common_prefix/2,
          is_equal/2, first_node/1, rest_nodes/1, append_node/2,
          xval/1, yval/1, zval/1, is_all_ones/1, is_all_zeroes/1,
-         bit_count/1, default_max_depth/0]).
+         bit_count/1, default_max_depth/0, split/4, xor_dim/3]).
 -endif.
 
 %% new/0
@@ -62,9 +62,13 @@ new_volume() -> #ot_volume{}.
 %%
 %% The function takes an integer value to create an empty structure of a given depth.
 %%
--spec new_volume(MaxDepth :: non_neg_integer()) -> ot_volume().
+-spec new_volume(MaxDepth :: non_neg_integer() | [ot_node_id()]) -> ot_volume().
 %% --------------------------------------------------------------------
-new_volume(MaxDepth) when is_integer(MaxDepth) -> #ot_volume{max_depth = MaxDepth}.
+new_volume(MaxDepth) when is_integer(MaxDepth) -> #ot_volume{max_depth = MaxDepth};
+
+new_volume(NodeList) when is_list(NodeList) -> 
+    #ot_volume{max_depth = ?DEFAULT_MAX_DEPTH, spaces=NodeList}.
+
 
 %% new_volume/2
 %% --------------------------------------------------------------------
@@ -80,7 +84,7 @@ new_volume(MaxDepth) when is_integer(MaxDepth) -> #ot_volume{max_depth = MaxDept
 %% --------------------------------------------------------------------
 new_volume(Point1, Point2)when is_record(Point1, ot_node_id)
                            and is_record(Point2, ot_node_id) ->
-    box_to_volume([normalize(Point1,Point2)],[]);
+    new_volume(box_to_volume([normalize(Point1,Point2)],[]));
 
 new_volume(P1 = {_X1, _Y1, _Z1}, P2 = {_X2, _Y2, _Z2}) ->
     new_volume(to_node_id(P1, ?DEFAULT_MAX_DEPTH),
@@ -131,6 +135,15 @@ to_node_id(NodeList, Depth) when is_list(NodeList) ->
 %% ====================================================================
 %% Internal functions
 %% ====================================================================
+
+%% box_to_volume/2
+%% --------------------------------------------------------------------
+%% @doc convert an axis aligned bounding box to a list of node ids.
+%% @end
+%% --------------------------------------------------------------------
+-spec box_to_volume(Inlist :: [{ot_node_id(), ot_node_id()}], 
+                    OutList :: [{ot_node_id(), ot_node_id()}]) -> 
+          [ot_node_id()].
 box_to_volume([], Result) -> Result;
 
 box_to_volume([{P1,P2}| Rest], Result) ->
@@ -139,12 +152,12 @@ box_to_volume([{P1,P2}| Rest], Result) ->
 
         false -> SplitList = split([], ?DEFAULT_MAX_DEPTH, P1, P2),
 
-%%                  ?debugFmt("SubTrees: ~p", [SplitList]),
+                 ?debugFmt("SubTrees Len: ~p", [length(SplitList)]),
 
                  {SplitList2, Areas} = filter_full_area(SplitList),
 
-%%                  ?debugFmt("Rest: ~p, SplitList: ~p, Result: ~p, Areas: ~p",
-%%                            [Rest, SplitList2, Result, Areas]),
+                 ?debugFmt("Rest Len: ~p, SplitList Len: ~p, Result Len: ~p, Areas Len: ~p",
+                           [length(Rest), length(SplitList2), length(Result), length(Areas)]),
 
                  box_to_volume(Rest ++ SplitList2, Result ++ Areas)
     end.
@@ -171,23 +184,14 @@ split(TreePrefix, RestDepth, P1, P2) ->
             R1 = rest_nodes(P1), R2 = rest_nodes(P2),
             split(TreePrefix ++ [F1], RestDepth-1, R1, R2);
         false ->
-            case (F1 == 0) and (F2 == 7) of
-                % in case the covers the whole tree, sweep up and only return the prefix
-                % twice, as it will be collected by filter_full_area
-                true ->
-                    [ {to_node_id(TreePrefix, ?DEFAULT_MAX_DEPTH),
-                       to_node_id(TreePrefix, ?DEFAULT_MAX_DEPTH)} ];
-
-                false ->
-                    List1 = split_borders([{P1,P2}],x),
-                    List2 = split_borders(List1,y),
-                    List3 = split_borders(List2,z),
-
-                    lists:map(fun({Node1, Node2}) ->
-                                      {prepend_path(Node1, TreePrefix),
-                                       prepend_path(Node2, TreePrefix)}
-                              end, List3)
-            end
+            List1 = split_borders([{P1,P2}],x),
+            List2 = split_borders(List1,y),
+            List3 = split_borders(List2,z),
+            
+            lists:map(fun({Node1, Node2}) ->
+                              {prepend_path(Node1, TreePrefix),
+                               prepend_path(Node2, TreePrefix)}
+                      end, List3)
     end.
 
 %% split_borders/2
@@ -246,8 +250,6 @@ left_wall(Point, y) when is_record(Point, ot_node_id)  ->
 left_wall(Point, z) when is_record(Point, ot_node_id)  ->
     Point#ot_node_id{z = ?LEFT_WALL}.
 
--define(RIGHT_BASE_MASK, (16#7fffffffffffffff)).
--define(RIGHT_SHIFT_MASK, (16#ffffffffffffffff)).
 
 %% right_wall/2
 %% --------------------------------------------------------------------
@@ -565,4 +567,6 @@ xor_dim(Pos1, Pos2, z) -> ((Pos1 band ?ZMult) bxor (Pos2 band ?ZMult)) bsr 0.
 %% @end
 -spec default_max_depth() -> pos_integer().
 default_max_depth() -> ?DEFAULT_MAX_DEPTH.
+
+
 
