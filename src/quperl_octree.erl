@@ -34,17 +34,18 @@
 %% ====================================================================
 -export([new_volume/0, new_volume/1, new_volume/2,
          to_node_id/1, to_node_id/2,
-         to_node_list/1, parent/1]).
+         to_node_list/1, inner/1, leaf/1,
+         is_equal/2]).
 
 
 -ifdef(TEST).
 %% export the private functions for testing only.
 -export([normalize/2, to_node_id/3,
-         box_to_volume/2, filter_full_area/1,common_prefix/2,
-         is_equal/2, first_node/1, rest_nodes/1, append_node/2,
-         xval/1, yval/1, zval/1, is_all_ones/1, is_all_zeroes/1,
-         bit_count/1, default_max_depth/0, split/4, xor_dim/3,
-         sweep/1, inner/1
+         box_to_volume/1, box_to_volume/2, filter_full_area/1,
+         common_prefix/2, first_node/1, rest_nodes/1,
+         append_node/2, xval/1, yval/1, zval/1, is_all_ones/1,
+         is_all_zeroes/1, bit_count/1, default_max_depth/0, split/4,
+         xor_dim/3, sweep/1, previous/1
         ]).
 -endif.
 
@@ -60,14 +61,11 @@ new_volume() -> #ot_volume{}.
 
 %% new_volume/1
 %% --------------------------------------------------------------------
-%% @doc create a octree record structure with a set depth.
+%% @doc create a octree volume structure from a list of node Ids.
 %%
-%% The function takes an integer value to create an empty structure of a given depth.
 %%
--spec new_volume(MaxDepth :: non_neg_integer() | [ot_node_id()]) -> ot_volume().
+-spec new_volume(NodeList :: [ot_node_id()]) -> ot_volume().
 %% --------------------------------------------------------------------
-new_volume(MaxDepth) when is_integer(MaxDepth) -> #ot_volume{max_depth = MaxDepth};
-
 new_volume(NodeList) when is_list(NodeList) ->
     #ot_volume{max_depth = ?DEFAULT_MAX_DEPTH, spaces=NodeList}.
 
@@ -86,7 +84,7 @@ new_volume(NodeList) when is_list(NodeList) ->
 %% --------------------------------------------------------------------
 new_volume(Point1, Point2)when is_record(Point1, ot_node_id)
                            and is_record(Point2, ot_node_id) ->
-    new_volume(box_to_volume([normalize(Point1,Point2)],[]));
+    new_volume(box_to_volume([normalize(Point1,Point2)]));
 
 new_volume(P1 = {_X1, _Y1, _Z1}, P2 = {_X2, _Y2, _Z2}) ->
     new_volume(to_node_id(P1, ?DEFAULT_MAX_DEPTH),
@@ -134,21 +132,64 @@ to_node_id(NodeList, Depth) when is_list(NodeList) ->
     to_node_id(NodeList, #ot_node_id{}, Depth).
 
 
-%% parent/1
+
+
+%% leaf/1
 %% --------------------------------------------------------------------
-%% @doc get parent of current node.
+%% @doc return the leaf element of a pos code.
 %%
-%% This function will return the same result as inner/1, but the parent of
-%% of the root is the root itself.
+%% The function will return the node identifier of the lowest, thus smallest node,
+%% that forms the end of the node path.
 %%
-%% @see quperl_octree_node_id:inner/1
+%% It will throw <tt>zero_depth</tt> if the node path is of length 0.
 %%
 %% @end
--spec parent(Point :: #ot_node_id{}) -> #ot_node_id{} | no_return().
+-spec leaf(Point :: #ot_node_id{}) -> ot_child_code() | no_return().
 %% --------------------------------------------------------------------
-parent(#ot_node_id{depth=0}) -> #ot_node_id{};
+leaf(#ot_node_id{depth=0}) -> throw(zero_depth);
 
-parent(Point) -> inner(Point).
+leaf(Point) when is_record(Point, ot_node_id) ->
+    Pos = ?DEFAULT_MAX_DEPTH - Point#ot_node_id.depth,
+    Mask = (1 bsl Pos),
+
+    (((Point#ot_node_id.x band Mask) bsr Pos) * ?XMult +
+     ((Point#ot_node_id.y band Mask) bsr Pos) * ?YMult +
+     ((Point#ot_node_id.z band Mask) bsr Pos) * ?ZMult).
+
+
+%% inner/1
+%% --------------------------------------------------------------------
+%% @doc get path of inner nodes.
+%%
+%% Function will return all path elements except the last (i.e the leaf node)
+%%
+%% @end
+%% --------------------------------------------------------------------
+-spec inner(Point :: #ot_node_id{}) -> #ot_node_id{} | no_return().
+inner(#ot_node_id{depth=0}) -> throw(zero_depth);
+
+inner(#ot_node_id{depth=Depth, x=X, y=Y, z=Z}) ->
+    Pos = (?DEFAULT_MAX_DEPTH - Depth),
+    Mask = (?RIGHT_SHIFT_MASK bxor (1 bsl Pos)),
+
+    to_node_id(Depth-1, X band Mask, Y band Mask, Z band Mask).
+
+
+%% is_equal/2
+%% --------------------------------------------------------------------
+%% @doc return true if two points are the same, false otherwise.
+%%
+%% Two points are considered the same, if their depth is equal and
+%% the path through the tree is the same.
+%%
+%% @end
+-spec is_equal(P1 :: #ot_node_id{}, P2 :: #ot_node_id{}) -> true|false.
+%% --------------------------------------------------------------------
+is_equal(#ot_node_id{depth = D, x=X, y=Y, z=Z},
+         #ot_node_id{depth = D, x=X, y=Y, z=Z}) -> true;
+
+is_equal(_,_) -> false.
+
 
 
 %% ====================================================================
@@ -165,6 +206,15 @@ parent(Point) -> inner(Point).
 %% --------------------------------------------------------------------
 to_node_id(Depth, X, Y, Z) -> #ot_node_id{depth=Depth, x=X, y=Y, z=Z}.
 
+
+%% box_to_volume/2
+%% --------------------------------------------------------------------
+%% @doc convert an axis aligned bounding box to a list of node ids.
+%% @end
+%% --------------------------------------------------------------------
+-spec box_to_volume(Inlist :: [{ot_node_id(), ot_node_id()}]) ->
+          [ot_node_id()].
+box_to_volume(InList) -> sweep(box_to_volume(InList, [])).
 
 %% box_to_volume/2
 %% --------------------------------------------------------------------
@@ -353,21 +403,6 @@ filter_full_area([{P1,P2}|SplitListRest], SplitOut, Results) ->
         true  -> filter_full_area(SplitListRest, SplitOut, Results ++ [Prefix]);
         false -> filter_full_area(SplitListRest, [{P1,P2} | SplitOut], Results)
     end.
-
-%% is_equal/2
-%% --------------------------------------------------------------------
-%% @doc return true if two points are the same, false otherwise.
-%%
-%% Two points are considered the same, if their depth is equal and
-%% the path through the tree is the same.
-%%
-%% @end
--spec is_equal(P1 :: #ot_node_id{}, P2 :: #ot_node_id{}) -> true|false.
-%% --------------------------------------------------------------------
-is_equal(#ot_node_id{depth = D, x=X, y=Y, z=Z},
-         #ot_node_id{depth = D, x=X, y=Y, z=Z}) -> true;
-
-is_equal(_,_) -> false.
 
 
 %% is_all_zeroes/1
@@ -606,33 +641,20 @@ default_max_depth() -> ?DEFAULT_MAX_DEPTH.
 %%
 %% Function will return all path elements except the last (i.e the leaf node)
 %%
+%% Function will throw badargs for any node that has no predecessor.
+%%
 %% @end
 -spec previous(Node :: #ot_node_id{}) -> #ot_node_id{}.
 previous(Node) ->
-    {Parent, Leaf} = split_leaf(Node),
-    case Leaf of
-        0 -> add_child(previous(inner(node)), 7);
-        L -> add_child(inner(Node), L-1)
+    try
+        Leaf = leaf(Node),
+        case Leaf of
+            0 -> append_node(previous(inner(Node)), 7);
+            L when is_integer(L) -> append_node(inner(Node), L-1)
+        end
+    catch
+        throw:zero_depth -> throw(badargs)
     end.
-
-
-
-%% inner/1
-%% --------------------------------------------------------------------
-%% @doc get path of inner nodes.
-%%
-%% Function will return all path elements except the last (i.e the leaf node)
-%%
-%% @end
--spec inner(Point :: #ot_node_id{}) -> #ot_node_id{} | no_return().
-%% --------------------------------------------------------------------
-inner(#ot_node_id{depth=0}) -> throw(zero_depth);
-
-inner(#ot_node_id{depth=Depth, x=X, y=Y, z=Z}) ->
-    Pos = (?DEFAULT_MAX_DEPTH - Depth),
-    Mask = (?RIGHT_SHIFT_MASK bxor (1 bsl Pos)),
-
-    to_node_id(Depth-1, X band Mask, Y band Mask, Z band Mask).
 
 
 %% sweep/1
@@ -647,15 +669,31 @@ inner(#ot_node_id{depth=Depth, x=X, y=Y, z=Z}) ->
 %% @end
 -spec sweep(Nodes :: [#ot_node_id{}] ) -> [#ot_node_id{}].
 %% --------------------------------------------------------------------
+sweep([]) -> [];
+
 sweep(Nodes) ->
-    {_Last, Carry, Ret} = lists:foldl(fun(Elem, {Last, Carry, Out}) ->
-                                             case previous(Elem) of
-                                                 Last ->
-                                                     case length(Carry) of
-                                                         7 -> {nil, [], Out ++ inner(Elem)};
-                                                         _ -> {Elem, Carry ++ [Elem], Out}
-                                                     end;
-                                                 _ -> {Elem, [Elem], Out ++ [Last]}
-                                             end
-                                     end, {nil, [], []}, Nodes),
-Ret ++ Carry.
+
+    {LastQ, Ret} =
+        lists:foldl(fun(Elem, {Q, Out})->
+                            case queue:peek_r(Q) of
+                                %% special case: first element
+                                empty ->
+                                    {queue:in(Elem, Q), Out};
+                                {value, Last} ->
+                                    case previous(Elem) of
+                                        Last ->
+                                            case queue:len(Q) of
+                                                7 ->
+                                                    {queue:new(), Out ++ [inner(Elem)]};
+                                                _ ->
+                                                    {queue:in(Elem, Q), Out}
+                                            end;
+                                        _Val ->
+                                            %% place elem in new queue, put content of
+                                            %% of old queue at the end of out
+                                            {queue:in(Elem, queue:new()), Out ++ queue:to_list(Q)}
+                                    end
+                            end
+                    end, {queue:new(), []}, Nodes),
+
+Ret ++ queue:to_list(LastQ).
