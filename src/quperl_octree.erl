@@ -46,7 +46,7 @@
          append_node/2, xval/1, yval/1, zval/1, is_all_ones/1,
          is_all_zeroes/1, bit_count/1, default_max_depth/0, split/4,
          xor_dim/3, sweep/1, previous/1, new_box_to_volume/2,
-         for_each_child/2, is_parent_of/2
+         for_each_child/2, is_parent_of/2, beyond/2
         ]).
 -endif.
 
@@ -270,15 +270,58 @@ new_box_to_volume(Parent, Point1, Point2) ->
 
 
 %% neither point is in node: ignore
-handle_node_parten(false, false, _Node, _Point1, _Point2) -> [];
+handle_node_parent(false, false, _Node, _Point1, _Point2) -> [];
 
-handle_node_parten(true, false, Node, Point1, Point2) ->
+%% both points in the node....
+handle_node_parent(true, true, Node, Point1, Point2) ->
+    Beyond1 = beyond(Node, Point1),
+    Beyond2 = beyond(Node, Point2),
+    case is_all_zeroes(Beyond1) and is_all_ones(Beyond2) of
+        %% the points encompass all of the node..
+        true ->
+            %%  return just the node
+                [Node];
+        %% the actual area is within the node
+        false ->
+            %% ... recurse into node
+            new_box_to_volume(Node, Point1, Point2)
+    end;
+
+handle_node_parent(true, false, Node, Point1, Point2) ->
     ok;
 
-handle_node_parten(false, true, Node, Point1, Point2) ->
-    ok;
+handle_node_parent(false, true, Node, Point1, Point2) ->
+    ok.
 
 
+
+%% beyond/2
+%% --------------------------------------------------------------------
+%% @doc construct a node from a tree path beyond an ancester.
+%%
+%% This basically a tail function on the node list.
+%%
+%% Example: beyond([1,2],[1,2,3,4]) -> [3,4]
+%%
+%% it does the same as calling rest_nodes/1 as many times as the
+%% depth of the ancestor, but is more efficient.
+%% 
+%% calling beyond with an ancestor of less depth than the point
+%% will throw badargs
+%% @end
+%% --------------------------------------------------------------------
+-spec beyond(Ancestor :: #ot_node_id{}, Point :: #ot_node_id{} ) -> #ot_node_id{}.
+
+beyond(A, P) when A#ot_node_id.depth >= P#ot_node_id.depth ->
+    throw(badargs);
+
+beyond(A, #ot_node_id{depth=PD, x=X, y=Y, z=Z}) -> 
+    AD = A#ot_node_id.depth,
+    Mask = ?RIGHT_SHIFT_MASK bsr AD,
+    NewX = ((X band Mask) bsl AD),
+    NewY = ((Y band Mask) bsl AD),
+    NewZ = ((Z band Mask) bsl AD),
+    #ot_node_id{depth=PD-AD, x=NewX , y= NewY, z= NewZ}.
 
 %% box_to_volume/1
 %% --------------------------------------------------------------------

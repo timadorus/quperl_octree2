@@ -66,6 +66,7 @@ unit_test_() ->
 %%                     , ?_test(test_box_to_volume1())
                     , ?_test(test_for_each_child())
                     , ?_test(test_is_parent_of())
+                    , ?_test(test_beyond())
 %%                     , ?_test(test_new_box_to_volume())
                     ]
       end }.
@@ -122,6 +123,19 @@ test_new_box_to_volume() ->
 
     ?assertEqual([], as_node_list(quperl_octree:new_box_to_volume(T1, T2))),
 
+    ok.
+
+
+test_beyond() ->
+    TestVals = [{[1],[1,2],[2]}],
+    
+    lists:foreach(fun({A,P,R}) ->
+                          ANode = quperl_octree:to_node_id(A),
+                          PNode = quperl_octree:to_node_id(P),
+                          Ret = quperl_octree:to_node_list(quperl_octree:beyond(ANode, PNode)),
+                          ?assertEqual(R, Ret)
+                  end, TestVals),
+    
     ok.
 
 
