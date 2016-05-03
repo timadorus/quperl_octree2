@@ -45,7 +45,8 @@
          common_prefix/2, first_node/1, rest_nodes/1,
          append_node/2, xval/1, yval/1, zval/1, is_all_ones/1,
          is_all_zeroes/1, bit_count/1, default_max_depth/0, split/4,
-         xor_dim/3, sweep/1, previous/1
+         xor_dim/3, sweep/1, previous/1, new_box_to_volume/2,
+         for_each_child/2, is_parent_of/2
         ]).
 -endif.
 
@@ -207,7 +208,79 @@ is_equal(_,_) -> false.
 to_node_id(Depth, X, Y, Z) -> #ot_node_id{depth=Depth, x=X, y=Y, z=Z}.
 
 
-%% box_to_volume/2
+
+%% for_each_child/2
+%% --------------------------------------------------------------------
+%% @doc execute function on each child of a node.
+%% @end
+%% --------------------------------------------------------------------
+-spec for_each_child(N :: #ot_node_id{}, F :: fun((Child :: #ot_node_id{}) -> term()) ) -> [term()].
+for_each_child(Node, Fun) ->
+    lists:map(fun(L) -> Fun(append_node(Node,L)) end, lists:seq(0, 7)).
+
+
+%% is_parent_of/2
+%% --------------------------------------------------------------------
+%% @doc return if N1 is parent of N2, false otherwise.
+%% @end
+%% --------------------------------------------------------------------
+-spec is_parent_of(N1 :: #ot_node_id{}, N2 :: #ot_node_id{}) -> boolean().
+
+is_parent_of(P1, P2) when P1#ot_node_id.depth >= P2#ot_node_id.depth ->
+    false;
+
+is_parent_of(P1, P2)  ->
+    D = P1#ot_node_id.depth,
+
+    is_parent_of(P1#ot_node_id.x, P2#ot_node_id.x, D)
+        and is_parent_of(P1#ot_node_id.y, P2#ot_node_id.y, D)
+        and is_parent_of(P1#ot_node_id.z, P2#ot_node_id.z, D).
+
+is_parent_of(N1, N2, D) ->
+    Mask = bnot (?RIGHT_SHIFT_MASK bsr D),
+    N1 == (N2 band Mask).
+
+
+%% new_box_to_volume/2
+%% --------------------------------------------------------------------
+%% @doc convert an axis aligned bounding box to a list of node ids.
+%% @end
+%% --------------------------------------------------------------------
+-spec new_box_to_volume(P1 :: ot_node_id(), P2 :: ot_node_id()) -> [ot_node_id()].
+new_box_to_volume(P1, P2) ->
+    new_box_to_volume(#ot_node_id{}, P1, P2).
+
+
+%% new_box_to_volume/3
+%% --------------------------------------------------------------------
+%% @doc find nodes that are part of volume in sub-tree that has node as
+%%  root.
+%% @end
+%% --------------------------------------------------------------------
+-spec new_box_to_volume(N :: ot_node_id(), P1 :: ot_node_id(), P2 :: ot_node_id()) -> [ot_node_id()].
+new_box_to_volume(Parent, Point1, Point2) ->
+
+    for_each_child(Parent,
+                   fun(Node) ->
+                      Parent1 = is_parent_of(Node, Point1),
+                      Parent2 = is_parent_of(Node, Point2),
+                      handle_node_parent(Parent1, Parent2, Node, Point1, Point2)
+                           end),
+    ok.
+
+
+%% neither point is in node: ignore
+handle_node_parten(false, false, _Node, _Point1, _Point2) -> [];
+
+handle_node_parten(true, false, Node, Point1, Point2) ->
+    ok;
+
+handle_node_parten(false, true, Node, Point1, Point2) ->
+    ok;
+
+
+
+%% box_to_volume/1
 %% --------------------------------------------------------------------
 %% @doc convert an axis aligned bounding box to a list of node ids.
 %% @end

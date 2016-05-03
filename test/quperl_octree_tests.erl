@@ -32,7 +32,7 @@ api_test_() ->
       fun takedown_env/1,
       fun(Args) -> [ ?_test(test_new_volume0(Args))
                    , ?_test(test_new_volume1(Args))
-                   , ?_test(test_new_volume2(Args))
+%%                    , ?_test(test_new_volume2(Args))
                    ]
       end }.
 
@@ -62,8 +62,11 @@ unit_test_() ->
                     , ?_test(test_sweep())
                     , ?_test(test_common_prefix())
                     , ?_test(test_filter_full_area())
-                    , ?_test(test_box_to_volume2())
-                    , ?_test(test_box_to_volume1())
+%%                     , ?_test(test_box_to_volume2())
+%%                     , ?_test(test_box_to_volume1())
+                    , ?_test(test_for_each_child())
+                    , ?_test(test_is_parent_of())
+%%                     , ?_test(test_new_box_to_volume())
                     ]
       end }.
 
@@ -108,6 +111,51 @@ test_new_volume2(_Args) ->
                                      L1]),
                           ?assertEqual(R, catch quperl_octree:new_volume(P1, P2))
                           end, TestCases),
+
+    ok.
+
+
+test_new_box_to_volume() ->
+
+    T1 = quperl_octree:to_node_id({0.479, 0.499, 0.499}),
+    T2 = quperl_octree:to_node_id({0.501, 0.501, 0.501}),
+
+    ?assertEqual([], as_node_list(quperl_octree:new_box_to_volume(T1, T2))),
+
+    ok.
+
+
+test_for_each_child() ->
+
+    ?assertEqual([[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[1,7]],
+                 as_node_list(quperl_octree:for_each_child(quperl_octree:to_node_id([1]),
+                                                           fun(C) -> C end))),
+    ok.
+
+
+test_is_parent_of() ->
+
+    Tests = [{false, [1,0], [1,0]},
+             {false, [0], [1,0]},
+             {false, [2], [1,2]},
+             {false, [4], [1,4]},
+             {false, [7], [1,7]},
+             {true, [1], [1,0]},
+             {true, [2], [2,0]},
+             {true, [4], [4,0]},
+             {true, [7], [7,0]},
+             {false, [0,1], [1,0]},
+             {true, [0,1], [0,1,0]},
+             {true, [3,0,1], [3,0,1,0]},
+             {true, [5,3,0,1], [5,3,0,1,6]},
+             {false, [1,0,1], [1,0]}
+            ],
+
+    lists:foreach(fun({R, A, B}) ->
+                          ?assertEqual(R, quperl_octree:is_parent_of(quperl_octree:to_node_id(A),
+                                                       quperl_octree:to_node_id(B)))
+                          end,
+                  Tests),
 
     ok.
 
