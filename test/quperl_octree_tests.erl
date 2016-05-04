@@ -65,8 +65,9 @@ unit_test_() ->
 %%                     , ?_test(test_box_to_volume2())
 %%                     , ?_test(test_box_to_volume1())
                     , ?_test(test_for_each_child())
-                    , ?_test(test_is_parent_of())
+                    , ?_test(test_is_ancestor_of())
                     , ?_test(test_beyond())
+                    , ?_test(test_get_code_at())
 %%                     , ?_test(test_new_box_to_volume())
                     ]
       end }.
@@ -126,16 +127,28 @@ test_new_box_to_volume() ->
     ok.
 
 
+test_get_code_at() ->
+    TestVals = [ {1, [1], 1}
+               , {2, [1,2], 2}
+               , {2, [1,2,3], 2}
+               , {3, [1,2,3], 3}],
+
+    lists:foreach(fun({D, L, R}) ->
+            Val = quperl_octree:to_node_id(L),
+            ?assertEqual(R, quperl_octree:get_code_at(D, Val))
+            end, TestVals),
+
+    ok.
 test_beyond() ->
     TestVals = [{[1],[1,2],[2]}],
-    
+
     lists:foreach(fun({A,P,R}) ->
                           ANode = quperl_octree:to_node_id(A),
                           PNode = quperl_octree:to_node_id(P),
                           Ret = quperl_octree:to_node_list(quperl_octree:beyond(ANode, PNode)),
                           ?assertEqual(R, Ret)
                   end, TestVals),
-    
+
     ok.
 
 
@@ -147,7 +160,7 @@ test_for_each_child() ->
     ok.
 
 
-test_is_parent_of() ->
+test_is_ancestor_of() ->
 
     Tests = [{false, [1,0], [1,0]},
              {false, [0], [1,0]},
@@ -158,15 +171,18 @@ test_is_parent_of() ->
              {true, [2], [2,0]},
              {true, [4], [4,0]},
              {true, [7], [7,0]},
+             {true, [], [7,0]},
              {false, [0,1], [1,0]},
              {true, [0,1], [0,1,0]},
              {true, [3,0,1], [3,0,1,0]},
              {true, [5,3,0,1], [5,3,0,1,6]},
+             {true, [5,3], [5,3,0,1,6]},
+             {false, [5,3,0,1], [5,3]},
              {false, [1,0,1], [1,0]}
             ],
 
     lists:foreach(fun({R, A, B}) ->
-                          ?assertEqual(R, quperl_octree:is_parent_of(quperl_octree:to_node_id(A),
+                          ?assertEqual(R, quperl_octree:is_ancestor_of(quperl_octree:to_node_id(A),
                                                        quperl_octree:to_node_id(B)))
                           end,
                   Tests),

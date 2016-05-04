@@ -46,7 +46,7 @@
          append_node/2, xval/1, yval/1, zval/1, is_all_ones/1,
          is_all_zeroes/1, bit_count/1, default_max_depth/0, split/4,
          xor_dim/3, sweep/1, previous/1, new_box_to_volume/2,
-         for_each_child/2, is_parent_of/2, beyond/2
+         for_each_child/2, is_ancestor_of/2, beyond/2, get_code_at/2
         ]).
 -endif.
 
@@ -208,6 +208,15 @@ is_equal(_,_) -> false.
 to_node_id(Depth, X, Y, Z) -> #ot_node_id{depth=Depth, x=X, y=Y, z=Z}.
 
 
+-spec get_code_at(Depth :: pos_integer(), Node :: #ot_node_id{}) -> ot_child_code().
+get_code_at(Depth, Node) ->
+    Shift = (?DEFAULT_MAX_DEPTH - Depth),
+    Mask = ?RIGHT_SHIFT_MASK bxor (1 bsl Shift),
+
+    (((Node#ot_node_id.x band Mask) bsr Shift) * ?XMult +
+     ((Node#ot_node_id.y band Mask) bsr Shift) * ?YMult +
+     ((Node#ot_node_id.z band Mask) bsr Shift) * ?ZMult).
+
 
 %% for_each_child/2
 %% --------------------------------------------------------------------
@@ -219,24 +228,24 @@ for_each_child(Node, Fun) ->
     lists:map(fun(L) -> Fun(append_node(Node,L)) end, lists:seq(0, 7)).
 
 
-%% is_parent_of/2
+%% is_ancestor_of/2
 %% --------------------------------------------------------------------
 %% @doc return if N1 is parent of N2, false otherwise.
 %% @end
 %% --------------------------------------------------------------------
--spec is_parent_of(N1 :: #ot_node_id{}, N2 :: #ot_node_id{}) -> boolean().
+-spec is_ancestor_of(N1 :: #ot_node_id{}, N2 :: #ot_node_id{}) -> boolean().
 
-is_parent_of(P1, P2) when P1#ot_node_id.depth >= P2#ot_node_id.depth ->
+is_ancestor_of(P1, P2) when P1#ot_node_id.depth >= P2#ot_node_id.depth ->
     false;
 
-is_parent_of(P1, P2)  ->
+is_ancestor_of(P1, P2)  ->
     D = P1#ot_node_id.depth,
 
-    is_parent_of(P1#ot_node_id.x, P2#ot_node_id.x, D)
-        and is_parent_of(P1#ot_node_id.y, P2#ot_node_id.y, D)
-        and is_parent_of(P1#ot_node_id.z, P2#ot_node_id.z, D).
+    is_ancestor_of(P1#ot_node_id.x, P2#ot_node_id.x, D)
+        and is_ancestor_of(P1#ot_node_id.y, P2#ot_node_id.y, D)
+        and is_ancestor_of(P1#ot_node_id.z, P2#ot_node_id.z, D).
 
-is_parent_of(N1, N2, D) ->
+is_ancestor_of(N1, N2, D) ->
     Mask = bnot (?RIGHT_SHIFT_MASK bsr D),
     N1 == (N2 band Mask).
 
@@ -262,18 +271,41 @@ new_box_to_volume(Parent, Point1, Point2) ->
 
     for_each_child(Parent,
                    fun(Node) ->
-                      Parent1 = is_parent_of(Node, Point1),
-                      Parent2 = is_parent_of(Node, Point2),
-                      handle_node_parent(Parent1, Parent2, Node, Point1, Point2)
+                      Parent1 = is_ancestor_of(Node, Point1),
+                      Parent2 = is_ancestor_of(Node, Point2),
+
+                      handle_node_parent(Parent1, Parent2, true, true, true, Node, Point1, Point2)
                            end),
     ok.
 
 
-%% neither point is in node: ignore
-handle_node_parent(false, false, _Node, _Point1, _Point2) -> [];
+%% handle_node_parent/8
+%% --------------------------------------------------------------------
+%% @doc compute the resultant nodes for point and node configuration
+%%
+%% The axis deltas (Dx,Dy,Dz) indicate whether the other point is
+%% in the upper node (true) or not (false). Since P1 and P2 are
+%% normalized, the line allways passes from P1 to the node border to
+%% P2. Thus a false will indicate a box from the border to the P2
+%% value for that dimension.
+%% @private
+%% @end
+%% --------------------------------------------------------------------
+-spec handle_node_parent(P1InNode, P2InNode, Dx,Dy,Dz, Node, P1, P2) -> [#ot_node_id{} ]when
+          P1InNode  :: boolean(),
+    P2InNode  :: boolean(),
+    Dx  :: boolean(),
+    Dy  :: boolean(),
+    Dz  :: boolean(),
+    Node :: #ot_node_id{},
+    P1 :: #ot_node_id{},
+    P2 :: #ot_node_id{}.
+
+%% neither point is in node and neither overlaps in any dimension: ignore
+handle_node_parent(false, false, false, false, false, _Node, _Point1, _Point2) -> [];
 
 %% both points in the node....
-handle_node_parent(true, true, Node, Point1, Point2) ->
+handle_node_parent(true, true, _Dx, _Dy, _Dz, Node, Point1, Point2) ->
     Beyond1 = beyond(Node, Point1),
     Beyond2 = beyond(Node, Point2),
     case is_all_zeroes(Beyond1) and is_all_ones(Beyond2) of
@@ -287,10 +319,14 @@ handle_node_parent(true, true, Node, Point1, Point2) ->
             new_box_to_volume(Node, Point1, Point2)
     end;
 
-handle_node_parent(true, false, Node, Point1, Point2) ->
+%% if both points are outside the node, the box may still overlap
+handle_node_parent(false, false, Dx, Dy, Dz, _Node, _Point1, _Point2) ->
     ok;
 
-handle_node_parent(false, true, Node, Point1, Point2) ->
+handle_node_parent(true, false, _Dx, _Dy, _Dz, Node, Point1, Point2) ->
+    ok;
+
+handle_node_parent(false, true, _Dx, _Dy, _Dz, Node, Point1, Point2) ->
     ok.
 
 
@@ -305,7 +341,7 @@ handle_node_parent(false, true, Node, Point1, Point2) ->
 %%
 %% it does the same as calling rest_nodes/1 as many times as the
 %% depth of the ancestor, but is more efficient.
-%% 
+%%
 %% calling beyond with an ancestor of less depth than the point
 %% will throw badargs
 %% @end
@@ -315,7 +351,7 @@ handle_node_parent(false, true, Node, Point1, Point2) ->
 beyond(A, P) when A#ot_node_id.depth >= P#ot_node_id.depth ->
     throw(badargs);
 
-beyond(A, #ot_node_id{depth=PD, x=X, y=Y, z=Z}) -> 
+beyond(A, #ot_node_id{depth=PD, x=X, y=Y, z=Z}) ->
     AD = A#ot_node_id.depth,
     Mask = ?RIGHT_SHIFT_MASK bsr AD,
     NewX = ((X band Mask) bsl AD),
