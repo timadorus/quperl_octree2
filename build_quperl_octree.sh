@@ -88,7 +88,7 @@ function update {
     
     pushd "${WORKDIR}/${PROJECT}_local"
 
-    for dir in src test 
+    for dir in src test include
      do
       # remove existing project source files
       rm -rf "${dir}"

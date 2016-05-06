@@ -35,7 +35,7 @@
 -export([new_volume/0, new_volume/1, new_volume/2,
          to_node_id/1, to_node_id/2,
          to_node_list/1, inner/1, leaf/1,
-         is_equal/2]).
+         is_equal/2, get_depth/1, get_value/2]).
 
 
 -ifdef(TEST).
@@ -46,7 +46,9 @@
          append_node/2, xval/1, yval/1, zval/1, is_all_ones/1,
          is_all_zeroes/1, bit_count/1, default_max_depth/0, split/4,
          xor_dim/3, sweep/1, previous/1, new_box_to_volume/2,
-         for_each_child/2, is_ancestor_of/2, beyond/2, get_code_at/2
+         for_each_child/2, is_ancestor_of/2, beyond/2, get_code_at/2,
+         left_wall/2, right_wall/2, left_wall/3, right_wall/3,
+         handle_node_parent/8
         ]).
 -endif.
 
@@ -171,7 +173,7 @@ inner(#ot_node_id{depth=0}) -> throw(zero_depth);
 
 inner(#ot_node_id{depth=Depth, x=X, y=Y, z=Z}) ->
     Pos = (?DEFAULT_MAX_DEPTH - Depth),
-    Mask = (?RIGHT_SHIFT_MASK bxor (1 bsl Pos)),
+    Mask = (?ALL_BITS_MASK bxor (1 bsl Pos)),
 
     to_node_id(Depth-1, X band Mask, Y band Mask, Z band Mask).
 
@@ -192,6 +194,24 @@ is_equal(#ot_node_id{depth = D, x=X, y=Y, z=Z},
 is_equal(_,_) -> false.
 
 
+%% get_depth/1
+%% --------------------------------------------------------------------
+%% @doc get the depth a node
+%% @end
+-spec get_depth(Node :: #ot_node_id{}) -> non_neg_integer().
+%% --------------------------------------------------------------------
+get_depth(Node) -> Node#ot_node_id.depth.
+
+
+%% get_value/2
+%% --------------------------------------------------------------------
+%% @doc get the point value per dimension
+%% @end
+%% --------------------------------------------------------------------
+-spec get_value(Node :: #ot_node_id{}, Dim :: x|y|z) -> non_neg_integer().
+get_value(Node, x) -> Node#ot_node_id.x;
+get_value(Node, y) -> Node#ot_node_id.y;
+get_value(Node, z) -> Node#ot_node_id.z.
 
 %% ====================================================================
 %% Internal functions
@@ -211,7 +231,7 @@ to_node_id(Depth, X, Y, Z) -> #ot_node_id{depth=Depth, x=X, y=Y, z=Z}.
 -spec get_code_at(Depth :: pos_integer(), Node :: #ot_node_id{}) -> ot_child_code().
 get_code_at(Depth, Node) ->
     Shift = (?DEFAULT_MAX_DEPTH - Depth),
-    Mask = ?RIGHT_SHIFT_MASK bxor (1 bsl Shift),
+    Mask = (1 bsl Shift),
 
     (((Node#ot_node_id.x band Mask) bsr Shift) * ?XMult +
      ((Node#ot_node_id.y band Mask) bsr Shift) * ?YMult +
@@ -246,7 +266,7 @@ is_ancestor_of(P1, P2)  ->
         and is_ancestor_of(P1#ot_node_id.z, P2#ot_node_id.z, D).
 
 is_ancestor_of(N1, N2, D) ->
-    Mask = bnot (?RIGHT_SHIFT_MASK bsr D),
+    Mask = bnot (?ALL_BITS_MASK bsr D),
     N1 == (N2 band Mask).
 
 
@@ -274,7 +294,13 @@ new_box_to_volume(Parent, Point1, Point2) ->
                       Parent1 = is_ancestor_of(Node, Point1),
                       Parent2 = is_ancestor_of(Node, Point2),
 
-                      handle_node_parent(Parent1, Parent2, true, true, true, Node, Point1, Point2)
+                      V1 = get_code_at(get_depth(Node), Point1),
+                      V2 = get_code_at(get_depth(Node), Point2),
+                      
+                      Dxyz = V1 bxor V2,
+                      Dx = xval(Dxyz), Dy = yval(Dxyz), Dz = zval(Dxyz),
+                      
+                      handle_node_parent(Parent1, Parent2, Dx,Dy,Dz, Node, Point1, Point2)
                            end),
     ok.
 
@@ -288,21 +314,48 @@ new_box_to_volume(Parent, Point1, Point2) ->
 %% normalized, the line allways passes from P1 to the node border to
 %% P2. Thus a false will indicate a box from the border to the P2
 %% value for that dimension.
+%%
+%%
+%% The following cases are possible:
+%% <dl>
+%%  <dt><tt>{f,f,f,f,f}</tt></dt>
+%%      <dd>ignore. Neither point lies in node, nor does any overlap this 
+%%          node.</dd>
+%%  <dt><tt>{f,f,_,_,_}</tt></dt>
+%%      <dd>create two new points, based on border passes, descend.</dd>
+%%  <dt><tt>{t,t,f,f,f}</tt></dt>
+%%      <dd>both points lie in node. If the points cover the two mos extreme
+%%          points of the node (all zero and all one respectively), this node
+%%          is fully covered and must be returned as leaf. Descend with both
+%%          points otherwise.</dd>
+%%  <dt><tt>{t,t,_,_,_}</tt></dt>
+%%      <dd>invalid</dd>
+%%  <dt><tt>{t,f,X,Y,Z}</tt> when (X or Y or Z) == false</dt>
+%%      <dd>invalid.</dd>
+%%  <dt><tt>{f,t,X,Y,Z}</tt> when (X or Y or Z) == false</dt>
+%%      <dd>invalid.</dd>
+%%  <dt><tt>{t,f,_,_,_}</tt></dt>
+%%      <dd>for each (D == true): split at upper border; descend with (P1, NewPoint)</dd>
+%%  <dt><tt>{f,t,_,_,_}</tt></dt>
+%%      <dd>for each (D == true): split at lower border; descend with (NewPoint, P2)</dd>
+%% </dl>
+%%
+%% For reasons of readability, the invalid cases are not filtered out.
 %% @private
 %% @end
 %% --------------------------------------------------------------------
 -spec handle_node_parent(P1InNode, P2InNode, Dx,Dy,Dz, Node, P1, P2) -> [#ot_node_id{} ]when
           P1InNode  :: boolean(),
     P2InNode  :: boolean(),
-    Dx  :: boolean(),
-    Dy  :: boolean(),
-    Dz  :: boolean(),
+    Dx  :: 0|1,
+    Dy  :: 0|1,
+    Dz  :: 0|1,
     Node :: #ot_node_id{},
     P1 :: #ot_node_id{},
     P2 :: #ot_node_id{}.
 
 %% neither point is in node and neither overlaps in any dimension: ignore
-handle_node_parent(false, false, false, false, false, _Node, _Point1, _Point2) -> [];
+handle_node_parent(false, false, 0, 0, 0, _Node, _Point1, _Point2) -> [];
 
 %% both points in the node....
 handle_node_parent(true, true, _Dx, _Dy, _Dz, Node, Point1, Point2) ->
@@ -320,17 +373,99 @@ handle_node_parent(true, true, _Dx, _Dy, _Dz, Node, Point1, Point2) ->
     end;
 
 %% if both points are outside the node, the box may still overlap
-handle_node_parent(false, false, Dx, Dy, Dz, _Node, _Point1, _Point2) ->
-    ok;
+%% N1x = if(Dx) right_wall(Node, x), else P2x
+%% N2x = If(Dx) P1x, else left_wall(Node, x)
 
-handle_node_parent(true, false, _Dx, _Dy, _Dz, Node, Point1, Point2) ->
-    ok;
+handle_node_parent(true, false, 
+                   Dx, Dy, Dz, 
+                   Node = #ot_node_id{depth =D}, Point1, Point2) ->
 
-handle_node_parent(false, true, _Dx, _Dy, _Dz, Node, Point1, Point2) ->
-    ok.
+    {NX1, NX2} = make_sub_node_points(true, false, 
+                                      Dx, 
+                                      is_upper(get_code_at(D, Node), x),
+                                      x, D+1,
+                                      Point1, Point2),
+    {NY1, NY2} = make_sub_node_points(true, false, 
+                                      Dx, 
+                                      is_upper(get_code_at(D, Node), z),
+                                      z, D+1,
+                                      Point1, Point2),
+    {NZ1, NZ2} = make_sub_node_points(true, false, 
+                                      Dz, 
+                                      is_upper(get_code_at(D, Node), z),
+                                      z, D+1,
+                                      Point1, Point2),
+
+    NewPoint1 = #ot_node_id{depth = Point1#ot_node_id.depth,
+                            x =NX1, y =NY1, z = NZ1
+                           },
+    NewPoint2 = #ot_node_id{depth = Point2#ot_node_id.depth,
+                            x =NX2, y =NY2, z = NZ2
+                           },
+    
+    
+    [NewPoint1, NewPoint2].
 
 
+%% determine if node is on the upper or lower part of the qube
+-spec is_upper(Pos :: ot_child_code(), Dim :: x|y|z) -> boolean().
+is_upper(Pos, x) -> xval(Pos) == 1;
+is_upper(Pos, y) -> yval(Pos) == 1;
+is_upper(Pos, z) -> zval(Pos) == 1.
 
+%% make_sub_node_points/7
+%% --------------------------------------------------------------------
+%% @doc create two points from two points that may be outside of current node. 
+%% @end
+-spec make_sub_node_points(IP1 :: boolean(), IP2 :: boolean(), 
+                           Delta :: 0|1, Upper ::boolean(),  
+                           Depth :: non_neg_integer(), 
+                           Dim :: x|y|z,
+                           P1 :: #ot_node_id{}, P2 :: #ot_node_id{}) ->
+          {non_neg_integer(), non_neg_integer()}.
+%% --------------------------------------------------------------------
+make_sub_node_points(false, false, 0, _Upper, _Depth, _Dim, _P1, _P2) ->
+    %% should not call this function, but be handled above
+    throw({badargs, false, false, 0});
+
+make_sub_node_points(false, false, 1, true, Depth, Dim, P1, P2) ->
+      P1Val = get_value(P1, Dim),
+      P2Val = get_value(P2, Dim),
+      {left_wall_calc(P1Val,Depth), P2Val};
+
+make_sub_node_points(false, false, 1, false, Depth, Dim, P1, P2) ->
+      P1Val = get_value(P1, Dim),
+      P2Val = get_value(P2, Dim),
+      ND = get_depth(P2),
+      {P1Val, right_wall_calc(P2Val, ND, Depth)};
+
+make_sub_node_points(true, false, 0, false, Depth, Dim, P1, P2) ->
+      P1Val = get_value(P1, Dim),
+      P2Val = get_value(P2, Dim),
+      {P1Val, P2Val};
+
+make_sub_node_points(true, false, 1, false, Depth, Dim, P1, P2) ->
+      P1Val = get_value(P1, Dim),
+      P2Val = get_value(P2, Dim),
+      ND = get_depth(P2),
+      {P1Val, right_wall_calc(P2Val, ND, Depth)};
+
+make_sub_node_points(false, true, 0, false, Depth, Dim, P1, P2) ->
+      P1Val = get_value(P1, Dim),
+      P2Val = get_value(P2, Dim),
+      {P1Val, P2Val};
+
+make_sub_node_points(false, true, 1, true, Depth, Dim, P1, P2) ->
+      P1Val = get_value(P1, Dim),
+      P2Val = get_value(P2, Dim),
+      {left_wall_calc(P1Val,Depth), P2Val};
+
+make_sub_node_points(In1, In2, Delta, Upper, Depth, Dim, P1, P2) ->
+    %% should not call this function, but be handled above
+    throw({badargs, unkown_combination, {In1, In2, Delta, Upper, Depth, Dim, P1, P2}}).
+
+
+  
 %% beyond/2
 %% --------------------------------------------------------------------
 %% @doc construct a node from a tree path beyond an ancester.
@@ -353,7 +488,7 @@ beyond(A, P) when A#ot_node_id.depth >= P#ot_node_id.depth ->
 
 beyond(A, #ot_node_id{depth=PD, x=X, y=Y, z=Z}) ->
     AD = A#ot_node_id.depth,
-    Mask = ?RIGHT_SHIFT_MASK bsr AD,
+    Mask = ?ALL_BITS_MASK bsr AD,
     NewX = ((X band Mask) bsl AD),
     NewY = ((Y band Mask) bsl AD),
     NewZ = ((Z band Mask) bsl AD),
@@ -470,17 +605,39 @@ split_border(P1,P2,Dim) ->
 %% --------------------------------------------------------------------
 %% @doc set all bits but the first of given dimension to 0, thus following the left
 %%      wall of the octree area.
+%%
+%% <p>Note: the functions is only correct for node depth > 0</p>
 %% @end
 -spec left_wall(#ot_node_id{}, x|y|z) -> #ot_node_id{}.
 %% --------------------------------------------------------------------
-left_wall(Point, x) when is_record(Point, ot_node_id) ->
-    Point#ot_node_id{x = ?LEFT_WALL};
+left_wall(Point, Dim) ->
+    left_wall(Point, 1, Dim).
 
-left_wall(Point, y) when is_record(Point, ot_node_id)  ->
-    Point#ot_node_id{y = ?LEFT_WALL};
 
-left_wall(Point, z) when is_record(Point, ot_node_id)  ->
-    Point#ot_node_id{z = ?LEFT_WALL}.
+%% left_wall/3
+%% --------------------------------------------------------------------
+%% @doc set all bits but the first of given dimension to 0, thus following the left
+%%      wall of the octree area. Start this at depth D ( > 0)
+%%
+%% <p>Note: the functions is only correct for node depth > 0</p>
+%% <p>Precondition: D must not be greater than node depth
+%% 
+%% @end
+-spec left_wall(#ot_node_id{}, Depth :: pos_integer(), x|y|z) -> #ot_node_id{}.
+%% --------------------------------------------------------------------
+left_wall(Point, Depth, x) ->
+    Point#ot_node_id{x = left_wall_calc(Point#ot_node_id.x, Depth)};
+
+left_wall(Point, Depth, y) ->
+    Point#ot_node_id{y = left_wall_calc(Point#ot_node_id.y, Depth)};
+
+left_wall(Point, Depth, z) ->
+    Point#ot_node_id{z = left_wall_calc(Point#ot_node_id.z, Depth)}.
+
+
+left_wall_calc(In, Depth) -> 
+    Mask = ?ALL_BITS_MASK bxor (?ALL_BITS_MASK bsr (Depth-1)),
+    (In band Mask) bor ( 1 bsl (?DEFAULT_MAX_DEPTH - (Depth))).
 
 
 %% right_wall/2
@@ -490,17 +647,33 @@ left_wall(Point, z) when is_record(Point, ot_node_id)  ->
 %% @end
 -spec right_wall(#ot_node_id{}, x|y|z) -> #ot_node_id{}.
 %% --------------------------------------------------------------------
-right_wall(Point = #ot_node_id{depth = D}, x) ->
-    Val = ?RIGHT_BASE_MASK band (?RIGHT_SHIFT_MASK bsl (?DEFAULT_MAX_DEPTH - D)),
-    Point#ot_node_id{x = Val};
+right_wall(Point, Dim) ->
+    right_wall(Point, 1, Dim).
 
-right_wall(Point = #ot_node_id{depth = D}, y) ->
-    Val = ?RIGHT_BASE_MASK band (?RIGHT_SHIFT_MASK bsl (?DEFAULT_MAX_DEPTH - D)),
-    Point#ot_node_id{y = Val};
 
-right_wall(Point = #ot_node_id{depth = D}, z) ->
-    Val = ?RIGHT_BASE_MASK band (?RIGHT_SHIFT_MASK bsl (?DEFAULT_MAX_DEPTH - D)),
-    Point#ot_node_id{z = Val}.
+%% right_wall/3
+%% --------------------------------------------------------------------
+%% @doc set all bits but the first of given dimension to one, thus following the right
+%%      wall of the octree area.
+%% @end
+-spec right_wall(#ot_node_id{}, Depth :: pos_integer(), x|y|z) -> #ot_node_id{}.
+%% --------------------------------------------------------------------
+right_wall(Point = #ot_node_id{depth = ND, x = X}, Depth, x) ->
+    Point#ot_node_id{x = right_wall_calc(X, ND, Depth)};
+
+right_wall(Point = #ot_node_id{depth = ND, y = Y}, Depth, y) ->
+    Point#ot_node_id{y = right_wall_calc(Y, ND, Depth)};
+
+right_wall(Point = #ot_node_id{depth = ND, z = Z}, Depth, z) ->
+    Point#ot_node_id{z = right_wall_calc(Z, ND, Depth)}.
+
+
+right_wall_calc(In, ND, Depth) ->
+    Mask = ?ALL_BITS_MASK bxor (?ALL_BITS_MASK bsr (Depth-1)),
+    NewBits = (?RIGHT_BASE_MASK bsr (Depth - 1))
+                  band (?ALL_BITS_MASK bsl (?DEFAULT_MAX_DEPTH - ND)) ,
+    ((In band Mask) bor NewBits).
+
 
 %% prepend_path/2
 %% --------------------------------------------------------------------
