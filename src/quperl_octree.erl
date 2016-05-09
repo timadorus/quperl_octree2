@@ -48,7 +48,7 @@
          xor_dim/3, sweep/1, previous/1, new_box_to_volume/2,
          for_each_child/2, is_ancestor_of/2, beyond/2, get_code_at/2,
          left_wall/2, right_wall/2, left_wall/3, right_wall/3,
-         handle_node_parent/8
+         handle_node_parent/8, make_sub_node_points/8
         ]).
 -endif.
 

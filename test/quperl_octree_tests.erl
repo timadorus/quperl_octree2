@@ -74,7 +74,8 @@ unit_test_() ->
                     , ?_test(test_get_code_at())
                     , ?_test(test_get_depth())
 %%                     , ?_test(test_new_box_to_volume())
-                    , ?_test(test_handle_node_parent())
+%%                     , ?_test(test_handle_node_parent())
+                    , ?_test(test_make_sub_node_points())
                     ]
       end }.
 
@@ -133,10 +134,35 @@ test_new_box_to_volume() ->
     ok.
 
 
+test_make_sub_node_points() ->
+    TestVals = [ {false,false,0,false,1,x,[1,1,2],[1,6,7], {badargs,false,false,0}}
+               , {true,false,1,false,2,x,[1,1,2],[1,6,7], {1,2}}
+               ],
+
+    lists:foreach(fun({I1, I2, Delta, Upper, Depth, Dim, P1, P2, Expected}) ->
+                          P1Id = quperl_octree:to_node_id(P1),
+                          P2Id = quperl_octree:to_node_id(P2),
+
+                          Result = (catch quperl_octree:make_sub_node_points(I1, I2, 
+                                                                                 Delta, Upper, 
+                                                                                 Depth, Dim, 
+                                                                                 P1Id, P2Id)),
+
+                          case Result of
+                              {V1, V2} ->
+                                  ?debugFmt("Result is: {~.16#,~.16#}~n",[V1,V2]);
+                              _ -> ok
+                                  end,
+                          
+                          ?assertEqual(Expected, Result)
+                  end, TestVals),
+    
+    ok.
+
 test_handle_node_parent() ->
     TestVals = [ {false,false,0,0,0,[1],[0,1],[0,2], []}
-                 {true,false,false,false,false,[1],[0,1],[0,2], []}
-             ],
+               , {true,false,false,false,false,[1],[0,1],[0,2], []}
+               ],
 
     lists:foreach(fun({I1, I2, Dx, Dy, Dz, Node, P1, P2, Expected}) ->
                           NodeId = quperl_octree:to_node_id(Node),
@@ -934,4 +960,5 @@ as_node_list([P1|Rest]) when is_record(P1, ot_node_id) ->
 
 as_node_list([{P1, P2}|Rest]) ->
    [{quperl_octree:to_node_list(P1), quperl_octree:to_node_list(P2)} | as_node_list(Rest)].
+
 
