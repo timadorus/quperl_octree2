@@ -76,6 +76,8 @@ unit_test_() ->
 %%                     , ?_test(test_new_box_to_volume())
 %%                     , ?_test(test_handle_node_parent())
                     , ?_test(test_make_sub_node_points())
+                    , ?_test(test_right_wall_calc())
+                    , ?_test(test_left_wall_calc())
                     ]
       end }.
 
@@ -133,19 +135,21 @@ test_new_box_to_volume() ->
 
     ok.
 
+%% bit at pos (position is 0 - Max Depth)
+-define(bap(P),1 bsl (?DEFAULT_MAX_DEPTH - P)).
 
 test_make_sub_node_points() ->
     TestVals = [ {false,false,0,false,1,x,[1,1,2],[1,6,7], {badargs,false,false,0}}
-               , {true,false,1,false,2,x,[1,1,2],[1,6,7], {1,2}}
+               , {true,false,1,false,2,x,[1,1,2],[1,6,7], {0,?bap(2)}}
                ],
 
     lists:foreach(fun({I1, I2, Delta, Upper, Depth, Dim, P1, P2, Expected}) ->
                           P1Id = quperl_octree:to_node_id(P1),
                           P2Id = quperl_octree:to_node_id(P2),
 
-                          Result = (catch quperl_octree:make_sub_node_points(I1, I2, 
-                                                                                 Delta, Upper, 
-                                                                                 Depth, Dim, 
+                          Result = (catch quperl_octree:make_sub_node_points(I1, I2,
+                                                                                 Delta, Upper,
+                                                                                 Depth, Dim,
                                                                                  P1Id, P2Id)),
 
                           case Result of
@@ -153,10 +157,16 @@ test_make_sub_node_points() ->
                                   ?debugFmt("Result is: {~.16#,~.16#}~n",[V1,V2]);
                               _ -> ok
                                   end,
-                          
+
+                          case Expected of
+                              {E1, E2} ->
+                                  ?debugFmt("Result is: {~.16#,~.16#}~n",[E1,E2]);
+                              _ -> ok
+                                  end,
+
                           ?assertEqual(Expected, Result)
                   end, TestVals),
-    
+
     ok.
 
 test_handle_node_parent() ->
@@ -169,15 +179,62 @@ test_handle_node_parent() ->
                           P1Id = quperl_octree:to_node_id(P1),
                           P2Id = quperl_octree:to_node_id(P2),
 
-                          Result = as_node_list(quperl_octree:handle_node_parent(I1, I2, 
-                                                                                 Dx, Dy, Dz, 
-                                                                                 NodeId, 
+                          Result = as_node_list(quperl_octree:handle_node_parent(I1, I2,
+                                                                                 Dx, Dy, Dz,
+                                                                                 NodeId,
                                                                                  P1Id, P2Id)),
 
                           ?assertEqual(Expected, Result)
                   end, TestVals),
     ok.
 
+-spec set_value(Val :: non_neg_integer(), Dim :: x|y|z, Depth :: non_neg_integer()) -> #ot_node_id{}.
+set_value(Val, x, Depth) -> #ot_node_id{depth = Depth, x = Val};
+set_value(Val, y, Depth) -> #ot_node_id{depth = Depth, y = Val};
+set_value(Val, z, Depth) -> #ot_node_id{depth = Depth, z = Val}.
+
+% only use the z values
+test_right_wall_calc() ->
+    TestVals = [ {{[1,0],1},[0,1]}
+               , {{[0,1,0],1},[0,1,1]}
+               , {{[1,1,0],1},[0,1,1]}
+               , {{[0,1,0,1],2},[0,0,1,1]}
+               , {{[0,0,0,1],2},[0,0,1,1]}
+               , {{[1,0,0,1],2},[1,0,1,1]}
+               ],
+
+    lists:foreach(fun({{L, Depth}, Expected}) ->
+                          Node = quperl_octree:to_node_id(L),
+                          Val = quperl_octree:get_value(Node, z),
+                          ND = quperl_octree:get_depth(Node),
+
+                          Result = quperl_octree:right_wall_calc(Val, ND, Depth),
+                          ?assertEqual(Expected, quperl_octree:to_node_list(set_value(Result, z, ND)))
+                  end, TestVals),
+
+    ok.
+
+
+% only use the z values
+test_left_wall_calc() ->
+    TestVals = [ {{[1,0],1},[1,0]}
+               , {{[0,1,0],1},[1,0,0]}
+               , {{[1,1,0],1},[1,0,0]}
+               , {{[0,1,0,1],2},[0,1,0,0]}
+               , {{[0,0,0,1],2},[0,1,0,0]}
+               , {{[1,0,0,1],2},[1,1,0,0]}
+               ],
+
+    lists:foreach(fun({{L, Depth}, Expected}) ->
+                          Node = quperl_octree:to_node_id(L),
+                          Val = quperl_octree:get_value(Node, z),
+                          ND = quperl_octree:get_depth(Node),
+
+                          Result = quperl_octree:left_wall_calc(Val, Depth),
+                          ?assertEqual(Expected, quperl_octree:to_node_list(set_value(Result, z, ND)))
+                  end, TestVals),
+
+    ok.
 
 test_get_code_at() ->
     TestVals = [ {1, [1], 1}
@@ -839,15 +896,15 @@ test_xor_dim() ->
 
 %%  set all the bits but the first to 1
 test_right_wall() ->
-    
+
     TestVals = [ {[],[],[],[]}
                , {[0], [0], [0], [0]}
                , {[0,0], [0,4], [0,2], [0,1]}
                , {[5,2,6], [1,6,6], [5,2,6], [4,3,7]}
                , {[7], [3], [5], [6]}
                ],
-    
-    lists:foreach(fun({I, XL, YL, ZL}) -> 
+
+    lists:foreach(fun({I, XL, YL, ZL}) ->
                           N = quperl_octree:to_node_id(I),
 
                           ?assertEqual(quperl_octree:to_node_id(XL),
@@ -865,7 +922,7 @@ test_right_wall() ->
 
 %%  set all the bits but the first to 1
 test_right_wall_at() ->
-    
+
     TestVals = [ {1, [],[],[],[]}
                , {1, [0], [0], [0], [0]}
                , {1, [0,0], [0,4], [0,2], [0,1]}
@@ -876,8 +933,8 @@ test_right_wall_at() ->
                , {3, [5,7,5,2,6], [5,7,1,6,6], [5,7,5,2,6], [5,7,4,3,7]}
                , {3, [0,7,7], [0,7,3], [0,7,5], [0,7,6]}
                ],
-    
-    lists:foreach(fun({D, I, XL, YL, ZL}) -> 
+
+    lists:foreach(fun({D, I, XL, YL, ZL}) ->
                           N = quperl_octree:to_node_id(I),
 
                           ?assertEqual(XL,
@@ -894,14 +951,14 @@ test_right_wall_at() ->
 
 %%  set all the bits but the first to 0
 test_left_wall() ->
-            
+
     TestVals = [ %% invalid depth: {[], [], [], []}
                  {[0], [4], [2], [1]}
                , {[0,7], [4,3], [2,5], [1,6]}
                , {[5,2,6],[5,2,2],[7,0,4],[5,2,6]}
                ],
-    
-    lists:foreach(fun({I, XL, YL, ZL}) -> 
+
+    lists:foreach(fun({I, XL, YL, ZL}) ->
                           N = quperl_octree:to_node_id(I),
 
                           ?assertEqual(quperl_octree:to_node_id(XL),
@@ -918,7 +975,7 @@ test_left_wall() ->
 
 %%  set all the bits but the first to 0, starting at a given depth
 test_left_wall_at() ->
-            
+
     TestVals = [ %% invalid depth: {[], [], [], []}
                  {1, [0], [4], [2], [1]}
                , {1, [0,7], [4,3], [2,5], [1,6]}
@@ -927,8 +984,8 @@ test_left_wall_at() ->
                , {3, [4,7,0,7], [4,7,4,3], [4,7,2,5], [4,7,1,6]}
                , {4, [1,2,4,5,2,6],[1,2,4,5,2,2],[1,2,4,7,0,4],[1,2,4,5,2,6]}
                ],
-    
-    lists:foreach(fun({D, I, XL, YL, ZL}) -> 
+
+    lists:foreach(fun({D, I, XL, YL, ZL}) ->
                           N = quperl_octree:to_node_id(I),
 
                           ?assertEqual(XL,
@@ -943,6 +1000,7 @@ test_left_wall_at() ->
                           end, TestVals),
 
     ok.
+
 
 
 %% @doc convert lists of lists of node_ids into node code lists

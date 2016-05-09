@@ -48,7 +48,8 @@
          xor_dim/3, sweep/1, previous/1, new_box_to_volume/2,
          for_each_child/2, is_ancestor_of/2, beyond/2, get_code_at/2,
          left_wall/2, right_wall/2, left_wall/3, right_wall/3,
-         handle_node_parent/8, make_sub_node_points/8
+         handle_node_parent/8, make_sub_node_points/8,
+         left_wall_calc/2, right_wall_calc/3
         ]).
 -endif.
 
@@ -296,10 +297,10 @@ new_box_to_volume(Parent, Point1, Point2) ->
 
                       V1 = get_code_at(get_depth(Node), Point1),
                       V2 = get_code_at(get_depth(Node), Point2),
-                      
+
                       Dxyz = V1 bxor V2,
                       Dx = xval(Dxyz), Dy = yval(Dxyz), Dz = zval(Dxyz),
-                      
+
                       handle_node_parent(Parent1, Parent2, Dx,Dy,Dz, Node, Point1, Point2)
                            end),
     ok.
@@ -319,7 +320,7 @@ new_box_to_volume(Parent, Point1, Point2) ->
 %% The following cases are possible:
 %% <dl>
 %%  <dt><tt>{f,f,f,f,f}</tt></dt>
-%%      <dd>ignore. Neither point lies in node, nor does any overlap this 
+%%      <dd>ignore. Neither point lies in node, nor does any overlap this
 %%          node.</dd>
 %%  <dt><tt>{f,f,_,_,_}</tt></dt>
 %%      <dd>create two new points, based on border passes, descend.</dd>
@@ -376,22 +377,22 @@ handle_node_parent(true, true, _Dx, _Dy, _Dz, Node, Point1, Point2) ->
 %% N1x = if(Dx) right_wall(Node, x), else P2x
 %% N2x = If(Dx) P1x, else left_wall(Node, x)
 
-handle_node_parent(true, false, 
-                   Dx, Dy, Dz, 
+handle_node_parent(true, false,
+                   Dx, Dy, Dz,
                    Node = #ot_node_id{depth =D}, Point1, Point2) ->
 
-    {NX1, NX2} = make_sub_node_points(true, false, 
-                                      Dx, 
+    {NX1, NX2} = make_sub_node_points(true, false,
+                                      Dx,
                                       is_upper(get_code_at(D, Node), x),
                                       x, D+1,
                                       Point1, Point2),
-    {NY1, NY2} = make_sub_node_points(true, false, 
-                                      Dx, 
+    {NY1, NY2} = make_sub_node_points(true, false,
+                                      Dx,
                                       is_upper(get_code_at(D, Node), z),
                                       z, D+1,
                                       Point1, Point2),
-    {NZ1, NZ2} = make_sub_node_points(true, false, 
-                                      Dz, 
+    {NZ1, NZ2} = make_sub_node_points(true, false,
+                                      Dz,
                                       is_upper(get_code_at(D, Node), z),
                                       z, D+1,
                                       Point1, Point2),
@@ -402,8 +403,8 @@ handle_node_parent(true, false,
     NewPoint2 = #ot_node_id{depth = Point2#ot_node_id.depth,
                             x =NX2, y =NY2, z = NZ2
                            },
-    
-    
+
+
     [NewPoint1, NewPoint2].
 
 
@@ -415,11 +416,11 @@ is_upper(Pos, z) -> zval(Pos) == 1.
 
 %% make_sub_node_points/7
 %% --------------------------------------------------------------------
-%% @doc create two points from two points that may be outside of current node. 
+%% @doc create two points from two points that may be outside of current node.
 %% @end
--spec make_sub_node_points(IP1 :: boolean(), IP2 :: boolean(), 
-                           Delta :: 0|1, Upper ::boolean(),  
-                           Depth :: non_neg_integer(), 
+-spec make_sub_node_points(IP1 :: boolean(), IP2 :: boolean(),
+                           Delta :: 0|1, Upper ::boolean(),
+                           Depth :: non_neg_integer(),
                            Dim :: x|y|z,
                            P1 :: #ot_node_id{}, P2 :: #ot_node_id{}) ->
           {non_neg_integer(), non_neg_integer()}.
@@ -431,24 +432,25 @@ make_sub_node_points(false, false, 0, _Upper, _Depth, _Dim, _P1, _P2) ->
 make_sub_node_points(false, false, 1, true, Depth, Dim, P1, P2) ->
       P1Val = get_value(P1, Dim),
       P2Val = get_value(P2, Dim),
-      {left_wall_calc(P1Val,Depth), P2Val};
+      {left_wall_calc(P1Val,Depth +1 ), P2Val};
 
 make_sub_node_points(false, false, 1, false, Depth, Dim, P1, P2) ->
       P1Val = get_value(P1, Dim),
       P2Val = get_value(P2, Dim),
       ND = get_depth(P2),
-      {P1Val, right_wall_calc(P2Val, ND, Depth)};
+      {P1Val, right_wall_calc(P2Val, ND, Depth +1 )};
 
 make_sub_node_points(true, false, 0, false, Depth, Dim, P1, P2) ->
       P1Val = get_value(P1, Dim),
       P2Val = get_value(P2, Dim),
       {P1Val, P2Val};
 
+%% first point is in, second is, out, there is a differences, but this not the upper.
 make_sub_node_points(true, false, 1, false, Depth, Dim, P1, P2) ->
       P1Val = get_value(P1, Dim),
       P2Val = get_value(P2, Dim),
       ND = get_depth(P2),
-      {P1Val, right_wall_calc(P2Val, ND, Depth)};
+      {P1Val, right_wall_calc(P2Val, ND, Depth +1)};
 
 make_sub_node_points(false, true, 0, false, Depth, Dim, P1, P2) ->
       P1Val = get_value(P1, Dim),
@@ -458,14 +460,14 @@ make_sub_node_points(false, true, 0, false, Depth, Dim, P1, P2) ->
 make_sub_node_points(false, true, 1, true, Depth, Dim, P1, P2) ->
       P1Val = get_value(P1, Dim),
       P2Val = get_value(P2, Dim),
-      {left_wall_calc(P1Val,Depth), P2Val};
+      {left_wall_calc(P1Val,Depth +1 ), P2Val};
 
 make_sub_node_points(In1, In2, Delta, Upper, Depth, Dim, P1, P2) ->
     %% should not call this function, but be handled above
     throw({badargs, unkown_combination, {In1, In2, Delta, Upper, Depth, Dim, P1, P2}}).
 
 
-  
+
 %% beyond/2
 %% --------------------------------------------------------------------
 %% @doc construct a node from a tree path beyond an ancester.
@@ -621,7 +623,7 @@ left_wall(Point, Dim) ->
 %%
 %% <p>Note: the functions is only correct for node depth > 0</p>
 %% <p>Precondition: D must not be greater than node depth
-%% 
+%%
 %% @end
 -spec left_wall(#ot_node_id{}, Depth :: pos_integer(), x|y|z) -> #ot_node_id{}.
 %% --------------------------------------------------------------------
@@ -635,7 +637,7 @@ left_wall(Point, Depth, z) ->
     Point#ot_node_id{z = left_wall_calc(Point#ot_node_id.z, Depth)}.
 
 
-left_wall_calc(In, Depth) -> 
+left_wall_calc(In, Depth) ->
     Mask = ?ALL_BITS_MASK bxor (?ALL_BITS_MASK bsr (Depth-1)),
     (In band Mask) bor ( 1 bsl (?DEFAULT_MAX_DEPTH - (Depth))).
 
@@ -668,6 +670,8 @@ right_wall(Point = #ot_node_id{depth = ND, z = Z}, Depth, z) ->
     Point#ot_node_id{z = right_wall_calc(Z, ND, Depth)}.
 
 
+-spec right_wall_calc(Val :: non_neg_integer(), NodeDepth ::non_neg_integer(),
+                      Depth :: non_neg_integer()) -> non_neg_integer().
 right_wall_calc(In, ND, Depth) ->
     Mask = ?ALL_BITS_MASK bxor (?ALL_BITS_MASK bsr (Depth-1)),
     NewBits = (?RIGHT_BASE_MASK bsr (Depth - 1))
