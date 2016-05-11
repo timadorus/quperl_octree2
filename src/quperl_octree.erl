@@ -1,6 +1,9 @@
 %%
 %% @doc manage arbitrary volumes within octree.
 %%
+%% the space encompassed by the octree forms a normcube with a length of 1 in
+%% each dimension. The dimensions x,y,z form a right handed cartesian
+%% coordination system with the origin at [0,0,0].
 %%
 %% <p>volumes are encoded as sets of intervals of a Morton endoding. Individual
 %% start and end nodes may be encoded in one of two ways:</p>
@@ -246,7 +249,7 @@ get_code_at(Depth, Node) ->
 %% --------------------------------------------------------------------
 -spec for_each_child(N :: #ot_node_id{}, F :: fun((Child :: #ot_node_id{}) -> term()) ) -> [term()].
 for_each_child(Node, Fun) ->
-    lists:map(fun(L) -> Fun(append_node(Node,L)) end, lists:seq(0, 7)).
+    lists:foldl(fun(L, Acc) -> Acc ++ Fun(append_node(Node,L)) end, [], lists:seq(0, 7)).
 
 
 %% is_ancestor_of/2
@@ -299,11 +302,11 @@ new_box_to_volume(Parent, Point1, Point2) ->
                       V2 = get_code_at(get_depth(Node), Point2),
 
                       Dxyz = V1 bxor V2,
+                      ?debugFmt("Dxyz: ~p, Depth: ~p~n",[Dxyz, get_depth(Parent)]),
                       Dx = xval(Dxyz), Dy = yval(Dxyz), Dz = zval(Dxyz),
 
                       handle_node_parent(Parent1, Parent2, Dx,Dy,Dz, Node, Point1, Point2)
-                           end),
-    ok.
+                   end).
 
 
 %% handle_node_parent/8
@@ -332,9 +335,9 @@ new_box_to_volume(Parent, Point1, Point2) ->
 %%  <dt><tt>{t,t,_,_,_}</tt></dt>
 %%      <dd>invalid</dd>
 %%  <dt><tt>{t,f,X,Y,Z}</tt> when (X or Y or Z) == false</dt>
-%%      <dd>invalid.</dd>
+%%      <dd>volume has less than three dims, thus empty sub tree.</dd>
 %%  <dt><tt>{f,t,X,Y,Z}</tt> when (X or Y or Z) == false</dt>
-%%      <dd>invalid.</dd>
+%%      <dd>volume has less than three dims, thus empty sub tree.</dd>
 %%  <dt><tt>{t,f,_,_,_}</tt></dt>
 %%      <dd>for each (D == true): split at upper border; descend with (P1, NewPoint)</dd>
 %%  <dt><tt>{f,t,_,_,_}</tt></dt>
@@ -345,7 +348,7 @@ new_box_to_volume(Parent, Point1, Point2) ->
 %% @private
 %% @end
 %% --------------------------------------------------------------------
--spec handle_node_parent(P1InNode, P2InNode, Dx,Dy,Dz, Node, P1, P2) -> [#ot_node_id{} ]when
+-spec handle_node_parent(P1InNode, P2InNode, Dx,Dy,Dz, Node, P1, P2) -> [#ot_node_id{}] when
           P1InNode  :: boolean(),
     P2InNode  :: boolean(),
     Dx  :: 0|1,
@@ -355,8 +358,11 @@ new_box_to_volume(Parent, Point1, Point2) ->
     P1 :: #ot_node_id{},
     P2 :: #ot_node_id{}.
 
-%% neither point is in node and neither overlaps in any dimension: ignore
-handle_node_parent(false, false, 0, 0, 0, _Node, _Point1, _Point2) -> [];
+
+%% volume is lacking delta in at least one dimension -> will not create volume, but point, line or area
+handle_node_parent(false, false, Dx, Dy, Dz, _N, _P1, _P2) when (Dx + Dy + Dz) < 3 -> [];
+handle_node_parent(true, false, Dx, Dy, Dz, _N, _P1, _P2) when (Dx + Dy + Dz) < 3 -> [];
+handle_node_parent(false, true, Dx, Dy, Dz, _N, _P1, _P2) when (Dx + Dy + Dz) < 3 -> [];
 
 %% both points in the node....
 handle_node_parent(true, true, _Dx, _Dy, _Dz, Node, Point1, Point2) ->
@@ -365,7 +371,7 @@ handle_node_parent(true, true, _Dx, _Dy, _Dz, Node, Point1, Point2) ->
     case is_all_zeroes(Beyond1) and is_all_ones(Beyond2) of
         %% the points encompass all of the node..
         true ->
-            %%  return just the node
+            ?debugFmt("return just the node",[]),
                 [Node];
         %% the actual area is within the node
         false ->
@@ -373,28 +379,29 @@ handle_node_parent(true, true, _Dx, _Dy, _Dz, Node, Point1, Point2) ->
             new_box_to_volume(Node, Point1, Point2)
     end;
 
+
 %% if both points are outside the node, the box may still overlap
 %% N1x = if(Dx) right_wall(Node, x), else P2x
 %% N2x = If(Dx) P1x, else left_wall(Node, x)
 
-handle_node_parent(true, false,
+handle_node_parent(In1, In2,
                    Dx, Dy, Dz,
                    Node = #ot_node_id{depth =D}, Point1, Point2) ->
 
-    {NX1, NX2} = make_sub_node_points(true, false,
+    {NX1, NX2} = make_sub_node_points(In1, In2,
                                       Dx,
                                       is_upper(get_code_at(D, Node), x),
-                                      x, D+1,
+                                      D+1, x,
                                       Point1, Point2),
-    {NY1, NY2} = make_sub_node_points(true, false,
-                                      Dx,
-                                      is_upper(get_code_at(D, Node), z),
-                                      z, D+1,
+    {NY1, NY2} = make_sub_node_points(In1, In2,
+                                      Dy,
+                                      is_upper(get_code_at(D, Node), y),
+                                      D+1, y,
                                       Point1, Point2),
-    {NZ1, NZ2} = make_sub_node_points(true, false,
+    {NZ1, NZ2} = make_sub_node_points(In1, In2,
                                       Dz,
                                       is_upper(get_code_at(D, Node), z),
-                                      z, D+1,
+                                      D+1, z,
                                       Point1, Point2),
 
     NewPoint1 = #ot_node_id{depth = Point1#ot_node_id.depth,
@@ -404,8 +411,7 @@ handle_node_parent(true, false,
                             x =NX2, y =NY2, z = NZ2
                            },
 
-
-    [NewPoint1, NewPoint2].
+    new_box_to_volume(Node, NewPoint1, NewPoint2).
 
 
 %% determine if node is on the upper or lower part of the qube
@@ -429,30 +435,24 @@ make_sub_node_points(false, false, 0, _Upper, _Depth, _Dim, _P1, _P2) ->
     %% should not call this function, but be handled above
     throw({badargs, false, false, 0});
 
-make_sub_node_points(false, false, 1, true, Depth, Dim, P1, P2) ->
-      P1Val = get_value(P1, Dim),
-      P2Val = get_value(P2, Dim),
-      {left_wall_calc(P1Val,Depth +1 ), P2Val};
-
-make_sub_node_points(false, false, 1, false, Depth, Dim, P1, P2) ->
-      P1Val = get_value(P1, Dim),
-      P2Val = get_value(P2, Dim),
-      ND = get_depth(P2),
-      {P1Val, right_wall_calc(P2Val, ND, Depth +1 )};
-
-make_sub_node_points(true, false, 0, false, Depth, Dim, P1, P2) ->
+%% first point is in, second is, out, there is a differences, but this not the upper.
+make_sub_node_points(true, false, 0, false, _Depth, Dim, P1, P2) ->
       P1Val = get_value(P1, Dim),
       P2Val = get_value(P2, Dim),
       {P1Val, P2Val};
 
-%% first point is in, second is, out, there is a differences, but this not the upper.
 make_sub_node_points(true, false, 1, false, Depth, Dim, P1, P2) ->
       P1Val = get_value(P1, Dim),
       P2Val = get_value(P2, Dim),
       ND = get_depth(P2),
-      {P1Val, right_wall_calc(P2Val, ND, Depth +1)};
+      {P1Val, right_wall_calc(P2Val, ND, Depth)};
 
-make_sub_node_points(false, true, 0, false, Depth, Dim, P1, P2) ->
+make_sub_node_points(false, true, 0, true, _Depth, Dim, P1, P2) ->
+      P1Val = get_value(P1, Dim),
+      P2Val = get_value(P2, Dim),
+      {P1Val, P2Val};
+
+make_sub_node_points(false, true, 0, false, _Depth, Dim, P1, P2) ->
       P1Val = get_value(P1, Dim),
       P2Val = get_value(P2, Dim),
       {P1Val, P2Val};
@@ -460,11 +460,23 @@ make_sub_node_points(false, true, 0, false, Depth, Dim, P1, P2) ->
 make_sub_node_points(false, true, 1, true, Depth, Dim, P1, P2) ->
       P1Val = get_value(P1, Dim),
       P2Val = get_value(P2, Dim),
-      {left_wall_calc(P1Val,Depth +1 ), P2Val};
+      {left_wall_calc(P1Val,Depth), P2Val};
+
+
+make_sub_node_points(false, false, 1, false, Depth, Dim, P1, P2) ->
+      P1Val = get_value(P1, Dim),
+      P2Val = get_value(P2, Dim),
+      ND = get_depth(P2),
+      {P1Val, right_wall_calc(P2Val, ND, Depth)};
+
+make_sub_node_points(false, false, 1, true, Depth, Dim, P1, P2) ->
+      P1Val = get_value(P1, Dim),
+      P2Val = get_value(P2, Dim),
+      {left_wall_calc(P1Val,Depth), P2Val};
 
 make_sub_node_points(In1, In2, Delta, Upper, Depth, Dim, P1, P2) ->
     %% should not call this function, but be handled above
-    throw({badargs, unkown_combination, {In1, In2, Delta, Upper, Depth, Dim, P1, P2}}).
+    throw({badargs, unkown_combination, {In1, In2, Delta, Upper, Depth, Dim, to_node_list(P1), to_node_list(P2)}}).
 
 
 

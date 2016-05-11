@@ -59,7 +59,7 @@ unit_test_() ->
                     , ?_test(test_right_wall_at())
                     , ?_test(test_default_max_depth())
                     , ?_test(test_xor_dim())
-                    , ?_test(test_split())
+%%                     , ?_test(test_split())
                     , ?_test(test_inner())
                     , ?_test(test_leaf())
                     , ?_test(test_previous())
@@ -73,11 +73,12 @@ unit_test_() ->
                     , ?_test(test_beyond())
                     , ?_test(test_get_code_at())
                     , ?_test(test_get_depth())
-%%                     , ?_test(test_new_box_to_volume())
-%%                     , ?_test(test_handle_node_parent())
+                    , ?_test(test_new_box_to_volume())
+                    , ?_test(test_handle_node_parent())
                     , ?_test(test_make_sub_node_points())
                     , ?_test(test_right_wall_calc())
                     , ?_test(test_left_wall_calc())
+                    , ?_test(test_bitlist())
                     ]
       end }.
 
@@ -128,20 +129,110 @@ test_new_volume2(_Args) ->
 
 test_new_box_to_volume() ->
 
-    T1 = quperl_octree:to_node_id({0.479, 0.499, 0.499}),
-    T2 = quperl_octree:to_node_id({0.501, 0.501, 0.501}),
+    TestVals = [
+                 %% a single point should return a single point
+                 {quperl_octree:to_node_id({0.499, 0.499, 0.499}),
+                  quperl_octree:to_node_id({0.499, 0.499, 0.499}),
+                  [quperl_octree:to_node_id({0.499, 0.499, 0.499})]}
 
-    ?assertEqual([], as_node_list(quperl_octree:new_box_to_volume(T1, T2))),
+               , {quperl_octree:to_node_id({0.499, 0.499, 0.499}),
+                  quperl_octree:to_node_id({0.501, 0.501, 0.501}),
+                  []}
+               ],
 
+
+    lists:foreach(fun({P1, P2, Expected}) ->
+                          Result = quperl_octree:new_box_to_volume(P1, P2),
+                          ?debugVal(Result),
+                          ?assertEqual(Expected, Result)
+                  end, TestVals),
     ok.
 
-%% bit at pos (position is 0 - Max Depth)
--define(bap(P),1 bsl (?DEFAULT_MAX_DEPTH - P)).
+
+%%
+%% Test cases 2-9: consider nodes of two timensions (z is set analogous)
+%%       -> y
+%%    --------------    --------------
+%%  | |I    |II    |    |V    |VI    |
+%% \/ | *p1 |      |    |     |      |  P1: [0,0,7,7,0]
+%%  x |     |      |    |     |      |  P2: [0,7,7,0,7]
+%%    --------------    --------------
+%%    |III  |IV    |    |VII  |VII   |
+%%    |     |      |    |     |  *p2 |
+%%    |     |      |    |     |      |
+%%    --------------    --------------
+%%
+%% Test cases 10-11: z is set to 0
+%%    --------------
+%%    |I    |II    |
+%%    | *p1 |      |  P1: [0,0,0,6,0]
+%%    |     |   *p2|  P2: [0,2,6,6,0]
+%%    --------------
+%%    |III  |IV    | Quadrant III amd IV have a delta in less than 3 dimensions, thus no volume
+%%    |     |      |
+%%    |     |      |
+%%    --------------
+%%
+%% Test cases 12: z is set to 0
+%%    --------------
+%%    |I*p1 |II    |
+%%    |     |      |  P1: [0,0,0,6,0]
+%%    |  p2*|      |  P2: [0,0,6,6,0]
+%%    --------------
+%%    |III  |IV    |
+%%    |     |      |
+%%    |     |      |
+%%    --------------
 
 test_make_sub_node_points() ->
-    TestVals = [ {false,false,0,false,1,x,[1,1,2],[1,6,7], {badargs,false,false,0}}
-               , {true,false,1,false,2,x,[1,1,2],[1,6,7], {0,?bap(2)}}
-               ],
+    TestVals = [ {false, false,0,false,1,x,[1,1,2],[1,6,7], {badargs,false,false,0}},
+                 {false, false,0,true,1,x,[1,1,2],[1,6,7], {badargs,false,false,0}}
+
+               , {true,  false, 1, false, 2, x, [0,0,7,7,0],[0,7,7,0,7], {[3,4],[3,4,5]}}   %% Quadrant I
+               , {true,  false, 1, false, 2, y, [0,0,7,7,0],[0,7,7,0,7], {[3,4],[3,4,5]}}
+               , {true,  false, 1, false, 2, z, [0,0,7,7,0],[0,7,7,0,7], {[3,4],[3,4,5]}}
+
+               , {false, false, 1, false, 2, x, [0,0,7,7,0],[0,7,7,0,7], {[3,4],[3,4,5]}}   %% Quadrant II
+               , {false, false, 1, true,  2, y, [0,0,7,7,0],[0,7,7,0,7], {[2],[2,3,5]}}
+               , {false, false, 1, false, 2, z, [0,0,7,7,0],[0,7,7,0,7], {[3,4],[3,4,5]}}
+
+               , {false, false, 1, true,  2, x, [0,0,7,7,0],[0,7,7,0,7], {[2],[2,3,5]}}   %% Quadrant III
+               , {false, false, 1, false, 2, y, [0,0,7,7,0],[0,7,7,0,7], {[3,4],[3,4,5]}}
+               , {false, false, 1, false, 2, z, [0,0,7,7,0],[0,7,7,0,7], {[3,4],[3,4,5]}}
+
+               , {false, false, 1, true,  2, x, [0,0,7,7,0],[0,7,7,0,7], {[2],[2,3,5]}}   %% Quadrant IV
+               , {false, false, 1, true,  2, y, [0,0,7,7,0],[0,7,7,0,7], {[2],[2,3,5]}}
+               , {false, false, 1, false, 2, z, [0,0,7,7,0],[0,7,7,0,7], {[3,4],[3,4,5]}}
+
+               , {false, false, 1, false, 2, x, [0,0,7,7,0],[0,7,7,0,7], {[3,4],[3,4,5]}}   %% Quadrant V
+               , {false, false, 1, false, 2, y, [0,0,7,7,0],[0,7,7,0,7], {[3,4],[3,4,5]}}
+               , {false, false, 1, true,  2, z, [0,0,7,7,0],[0,7,7,0,7], {[2],[2,3,5]}}
+
+               , {false, false, 1, true,  2, x, [0,0,7,7,0],[0,7,7,0,7], {[2],[2,3,5]}}   %% Quadrant VI
+               , {false, false, 1, false, 2, y, [0,0,7,7,0],[0,7,7,0,7], {[3,4],[3,4,5]}}
+               , {false, false, 1, true,  2, z, [0,0,7,7,0],[0,7,7,0,7], {[2],[2,3,5]}}
+
+               , {false, false, 1, false, 2, x, [0,0,7,7,0],[0,7,7,0,7], {[3,4],[3,4,5]}}   %% Quadrant VII
+               , {false, false, 1, true,  2, y, [0,0,7,7,0],[0,7,7,0,7], {[2],[2,3,5]}}
+               , {false, false, 1, true,  2, z, [0,0,7,7,0],[0,7,7,0,7], {[2],[2,3,5]}}
+
+               , {false, true,  1, true,  2, x, [0,0,7,7,0],[0,7,7,0,7], {[2],[2,3,5]}}   %% Quadrant VIII
+               , {false, true,  1, true,  2, y, [0,0,7,7,0],[0,7,7,0,7], {[2],[2,3,5]}}
+               , {false, true,  1, true,  2, z, [0,0,7,7,0],[0,7,7,0,7], {[2],[2,3,5]}}
+%% Testcases 10-11
+               , {true,  false, 0, false, 2, x, [0,0,0,6,0],[0,2,6,6,0], {[4],[3,4]}}   %% Quadrant I
+               , {true,  false, 1, false, 2, y, [0,0,0,6,0],[0,2,6,6,0], {[4],[3,4,5]}}
+               , {true,  false, 0, false, 2, z, [0,0,0,6,0],[0,2,6,6,0], {[],[]}}
+
+               , {false, true,  0, false, 2, x, [0,0,0,6,0],[0,2,6,6,0], {[4],[3,4]}}   %% Quadrant II
+               , {false, true,  1, true,  2, y, [0,0,0,6,0],[0,2,6,6,0], {[2],[2,3,4]}}
+               , {false, true,  0, false, 2, z, [0,0,0,6,0],[0,2,6,6,0], {[],[]}}
+%% Testcase 12 (should not happen, as caught by higher level)
+%%                , {true,  true,  0, false, 2, x, [0,0,0,6,0],[0,0,6,6,0], {[4],[3,4]}}   %% Quadrant II
+%%                , {true,  true,  0, true,  2, y, [0,0,0,6,0],[0,0,6,6,0], {[2],[2,3,4]}}
+%%                , {true,  true,  0, false, 2, z, [0,0,0,6,0],[0,2,6,6,0], {[],[]}}
+
+],
 
     lists:foreach(fun({I1, I2, Delta, Upper, Depth, Dim, P1, P2, Expected}) ->
                           P1Id = quperl_octree:to_node_id(P1),
@@ -152,26 +243,35 @@ test_make_sub_node_points() ->
                                                                                  Depth, Dim,
                                                                                  P1Id, P2Id)),
 
-                          case Result of
-                              {V1, V2} ->
-                                  ?debugFmt("Result is: {~.16#,~.16#}~n",[V1,V2]);
-                              _ -> ok
-                                  end,
+                          ResultPrep = case Result of
+                                           {V1, V2} ->
+                                               R1 = bitlist(V1),
+                                               R2 = bitlist(V2),
+                                               io:format("Result is: {~p,~p}~n",[R1,R2]),
+                                               {R1,R2};
+                                           Other -> Other
+                                       end,
 
                           case Expected of
                               {E1, E2} ->
-                                  ?debugFmt("Result is: {~.16#,~.16#}~n",[E1,E2]);
-                              _ -> ok
+                                  io:format("Expected is: {~p,~p}~n~n",[E1,E2]);
+                              _ -> Expected
                                   end,
 
-                          ?assertEqual(Expected, Result)
+                          ?assertEqual(Expected, ResultPrep)
                   end, TestVals),
 
     ok.
 
 test_handle_node_parent() ->
-    TestVals = [ {false,false,0,0,0,[1],[0,1],[0,2], []}
-               , {true,false,false,false,false,[1],[0,1],[0,2], []}
+    TestVals = [ {false, false, 0,0,0,[1],[0,1],[0,2], []}  %% not in field
+               , {true,  false, 0,0,0,[1],[0,1],[0,2], []}  %% no volume
+               , {true,  false, 0,0,1,[1],[0,1],[0,2], []}  %%    :
+               , {true,  false, 0,1,1,[1],[0,1],[0,2], []}  %%    :
+               , {false, true,  0,0,0,[1],[0,1],[0,2], []}  %%    :
+               , {false, true,  0,0,1,[1],[0,1],[0,2], []}  %%    :
+               , {false, true,  0,1,1,[1],[0,1],[0,2], []}  %%    :
+
                ],
 
     lists:foreach(fun({I1, I2, Dx, Dy, Dz, Node, P1, P2, Expected}) ->
@@ -280,7 +380,7 @@ test_for_each_child() ->
 
     ?assertEqual([[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[1,7]],
                  as_node_list(quperl_octree:for_each_child(quperl_octree:to_node_id([1]),
-                                                           fun(C) -> C end))),
+                                                           fun(C) -> [C] end))),
     ok.
 
 
@@ -1002,6 +1102,17 @@ test_left_wall_at() ->
     ok.
 
 
+test_bitlist() ->
+
+    TestVals = [ {0, []}
+               , {16#580000000000000, [2,4,5]}
+               ],
+
+    lists:foreach(fun({V, Exp}) ->
+                          ?assertEqual(Exp, bitlist(V))
+                          end, TestVals),
+
+    ok.
 
 %% @doc convert lists of lists of node_ids into node code lists
 %% @private
@@ -1020,3 +1131,30 @@ as_node_list([{P1, P2}|Rest]) ->
    [{quperl_octree:to_node_list(P1), quperl_octree:to_node_list(P2)} | as_node_list(Rest)].
 
 
+%% bap/1
+%% bit at pos (position is 0 - Max Depth)
+-spec bap(Val :: non_neg_integer() | [pos_integer()] | {pos_integer(), pos_integer()}) -> non_neg_integer().
+bap(P) -> bap(P, 0).
+
+bap({PStart, PEnd}, Acc) ->
+    bap(lists:seq(PStart, PEnd), Acc);
+
+bap(P,Acc) when is_integer(P) -> Acc bor (1 bsl (?DEFAULT_MAX_DEPTH - P));
+
+bap(PList, Acc) when is_list(PList) ->
+    lists:foldl(fun(P, Acc) ->
+                        bap(P,Acc)
+                        end, Acc, PList).
+
+
+-spec bitlist(V :: non_neg_integer()) -> [pos_integer()].
+bitlist(V) -> bitlist(V,?DEFAULT_MAX_DEPTH,[]).
+
+bitlist(0, _, L) -> L;
+bitlist(V, I, L) ->
+      case (V band 1) of
+          0 ->
+              bitlist(V bsr 1, I - 1, L);
+          1 ->
+              bitlist(V bsr 1, I - 1, [I | L])
+              end.
