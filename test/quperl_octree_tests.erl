@@ -74,7 +74,7 @@ unit_test_() ->
                     , ?_test(test_get_code_at())
                     , ?_test(test_get_depth())
                     , ?_test(test_new_box_to_volume())
-                    , ?_test(test_handle_node_parent())
+%%                     , ?_test(test_handle_node_parent())
                     , ?_test(test_make_sub_node_points())
                     , ?_test(test_right_wall_calc())
                     , ?_test(test_left_wall_calc())
@@ -130,20 +130,30 @@ test_new_volume2(_Args) ->
 test_new_box_to_volume() ->
 
     TestVals = [
-                 %% a single point should return a single point
-                 {quperl_octree:to_node_id({0.499, 0.499, 0.499}),
-                  quperl_octree:to_node_id({0.499, 0.499, 0.499}),
-                  [quperl_octree:to_node_id({0.499, 0.499, 0.499})]}
+%%                  %% a single point should return a single point
+%%                  {{0.499, 0.499, 0.499},
+%%                   {0.499, 0.499, 0.499},
+%%                   [quperl_octree:to_node_id({0.499, 0.499, 0.499})]}
 
-               , {quperl_octree:to_node_id({0.499, 0.499, 0.499}),
-                  quperl_octree:to_node_id({0.501, 0.501, 0.501}),
+                {[0,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+                   7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+                   7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
+                  [7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
                   []}
+               
+%%                , {{0.499, 0.499, 0.499},
+%%                   {0.501, 0.501, 0.501},
+%%                   []}
                ],
 
 
     lists:foreach(fun({P1, P2, Expected}) ->
-                          Result = quperl_octree:new_box_to_volume(P1, P2),
+                          Result = quperl_octree:new_box_to_volume(quperl_octree:to_node_id(P1), 
+                                                                   quperl_octree:to_node_id(P2)),
                           ?debugVal(Result),
+                          ?debugVal(length(Result)),
                           ?assertEqual(Expected, Result)
                   end, TestVals),
     ok.
@@ -157,7 +167,7 @@ test_new_box_to_volume() ->
 %% \/ | *p1 |      |    |     |      |  P1: [0,0,7,7,0]
 %%  x |     |      |    |     |      |  P2: [0,7,7,0,7]
 %%    --------------    --------------
-%%    |III  |IV    |    |VII  |VII   |
+%%    |III  |IV    |    |VII  |VIII  |
 %%    |     |      |    |     |  *p2 |
 %%    |     |      |    |     |      |
 %%    --------------    --------------
@@ -183,6 +193,11 @@ test_new_box_to_volume() ->
 %%    |     |      |
 %%    |     |      |
 %%    --------------
+%%
+%% Variations: 
+%%  13: like 1, but with P1 in the upper node at the given level
+%%  14: like 8, but with P2 in the lower node at the given level
+%%  15: like 1, but with a longer prefix
 
 test_make_sub_node_points() ->
     TestVals = [ {false, false,0,false,1,x,[1,1,2],[1,6,7], {badargs,false,false,0}},
@@ -227,10 +242,26 @@ test_make_sub_node_points() ->
                , {false, true,  0, false, 2, x, [0,0,0,6,0],[0,2,6,6,0], {[4],[3,4]}}   %% Quadrant II
                , {false, true,  1, true,  2, y, [0,0,0,6,0],[0,2,6,6,0], {[2],[2,3,4]}}
                , {false, true,  0, false, 2, z, [0,0,0,6,0],[0,2,6,6,0], {[],[]}}
+
 %% Testcase 12 (should not happen, as caught by higher level)
 %%                , {true,  true,  0, false, 2, x, [0,0,0,6,0],[0,0,6,6,0], {[4],[3,4]}}   %% Quadrant II
 %%                , {true,  true,  0, true,  2, y, [0,0,0,6,0],[0,0,6,6,0], {[2],[2,3,4]}}
 %%                , {true,  true,  0, false, 2, z, [0,0,0,6,0],[0,2,6,6,0], {[],[]}}
+
+%% Testcase 15: (node is [0,0,7])
+               , {true,  false, 1, false, 4, x, [0,0,7,0,0,7,7,0],[7,0,7,0,7,7,0,7], {[3,6,7],[3,5,6,7,8]}}   %% Quadrant I
+               , {true,  false, 1, false, 4, y, [0,0,7,0,0,7,7,0],[7,0,7,0,7,7,0,7], {[3,6,7],[3,5,6,7,8]}}
+               , {true,  false, 1, false, 4, z, [0,0,7,0,0,7,7,0],[7,0,7,0,7,7,0,7], {[3,6,7],[3,5,6,7,8]}}
+
+%% Testcase 13 (node is [0]):
+               , {true,  false, 1, true,  2, x, [0,7,7,7,0],[7,0,7,0,7], {[2,3,4],[3,4,5]}}   %% Quadrant I
+               , {true,  false, 1, true,  2, y, [0,7,7,7,0],[7,0,7,0,7], {[2,3,4],[3,4,5]}}
+               , {true,  false, 1, true,  2, z, [0,7,7,7,0],[7,0,7,0,7], {[2,3,4],[3,4,5]}}
+
+%% Testcase 14 (node is [7]):
+               , {false, true,  1, false,  2, x, [0,7,7,7,0],[7,0,7,0,7], {[1,2],[1,3,5]}}   %% Quadrant I
+               , {false, true,  1, false,  2, y, [0,7,7,7,0],[7,0,7,0,7], {[1,2],[1,3,5]}}
+               , {false, true,  1, false,  2, z, [0,7,7,7,0],[7,0,7,0,7], {[1,2],[1,3,5]}}
 
 ],
 
@@ -271,6 +302,30 @@ test_handle_node_parent() ->
                , {false, true,  0,0,0,[1],[0,1],[0,2], []}  %%    :
                , {false, true,  0,0,1,[1],[0,1],[0,2], []}  %%    :
                , {false, true,  0,1,1,[1],[0,1],[0,2], []}  %%    :
+               , {true,  true,  0,0,0,[0,7], [0,7,7,7,0],[0,7,7,7,7], [[0,7,7,7]]}
+               
+%% Exception: {badargs,unkown_combination,
+%%                     {true,false,1,true,3,x,
+%%                           [0,7,7,7,7...],
+%%                           [7,0,7,7,7...]}}
+%% Node: [0,7]
+%% Point1: [0,7,7,7,7,7,7,7,7,0,7,7,7,7,7,0,0,7,7,7,0,7,7,0,7,7,0,0,7,0,0,0,7,0,
+%%          7,7,0,7,0,0,0,0,7,7,7,0,0,7,0,7,0,7,7,0,0,0,0,0,0,0]
+%% Point2: [7,0,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+%%          7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7]
+%% Exception: {badargs,unkown_combination,
+%%                     {false,true,1,false,3,x,
+%%                            [0,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+%%                             0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+%%                             0,0,0,0,0,0,0,0,0,0],
+%%                            [7,0,0,0,0,0,0,0,0,7,0,0,0,0,0,7,7,0,0,0,7,0,0,7,0,
+%%                             0,7,7,0,7,7,7,0,7,0,0,7,0,7,7,7,7,0,0,0,7,7,0,7,0,
+%%                             7,0,7,0,0,0,0,0,0,0]}}
+%% Node: [7,0]
+%% Point1: [0,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+%%          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+%% Point2: [7,0,0,0,0,0,0,0,0,7,0,0,0,0,0,7,7,0,0,0,7,0,0,7,0,0,7,7,0,7,7,7,0,7,
+%%          0,0,7,0,7,7,7,7,0,0,0,7,7,0,7,0,7,0,7,0,0,0,0,0,0,0]
 
                ],
 

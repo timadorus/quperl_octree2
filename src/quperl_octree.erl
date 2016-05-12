@@ -280,7 +280,7 @@ is_ancestor_of(N1, N2, D) ->
 %% @end
 %% --------------------------------------------------------------------
 -spec new_box_to_volume(P1 :: ot_node_id(), P2 :: ot_node_id()) -> [ot_node_id()].
-new_box_to_volume(P1, P2) ->
+new_box_to_volume(P1, P2) when P1#ot_node_id.depth == P2#ot_node_id.depth ->
     new_box_to_volume(#ot_node_id{}, P1, P2).
 
 
@@ -291,6 +291,8 @@ new_box_to_volume(P1, P2) ->
 %% @end
 %% --------------------------------------------------------------------
 -spec new_box_to_volume(N :: ot_node_id(), P1 :: ot_node_id(), P2 :: ot_node_id()) -> [ot_node_id()].
+new_box_to_volume(_P, Point, Point) -> [Point];
+
 new_box_to_volume(Parent, Point1, Point2) ->
 
     for_each_child(Parent,
@@ -302,7 +304,8 @@ new_box_to_volume(Parent, Point1, Point2) ->
                       V2 = get_code_at(get_depth(Node), Point2),
 
                       Dxyz = V1 bxor V2,
-                      ?debugFmt("Dxyz: ~p, Depth: ~p~n",[Dxyz, get_depth(Parent)]),
+%%                       io:fwrite(user, <<"Par1: ~p, Par2: ~p, V1: ~p, V2: ~p, Dxyz: ~p, Depth: ~p\n">>,
+%%                                 [Parent1, Parent2, V1,V2, Dxyz, get_depth(Parent)]),
                       Dx = xval(Dxyz), Dy = yval(Dxyz), Dz = zval(Dxyz),
 
                       handle_node_parent(Parent1, Parent2, Dx,Dy,Dz, Node, Point1, Point2)
@@ -358,26 +361,28 @@ new_box_to_volume(Parent, Point1, Point2) ->
     P1 :: #ot_node_id{},
     P2 :: #ot_node_id{}.
 
+%% both points in the node....
+handle_node_parent(true, true, _Dx, _Dy, _Dz, Node, Point1, Point2) ->
+    Beyond1 = beyond(Node, Point1),
+    Beyond2 = beyond(Node, Point2),
+    
+    ?debugVal(to_node_list(Node)),?debugVal(to_node_list(Beyond1)),?debugVal(to_node_list(Beyond2)),
+    case is_all_zeroes(Beyond1) and is_all_ones(Beyond2) of
+        %% the points encompass all of the node..
+        true ->
+            ?debugMsg("return node"),
+                [Node];
+        %% the actual area is within the node
+        false ->
+            ?debugFmt("... recurse into node Depth:~p",[get_depth(Node)]),
+            new_box_to_volume(Node, Point1, Point2)
+    end;
 
 %% volume is lacking delta in at least one dimension -> will not create volume, but point, line or area
 handle_node_parent(false, false, Dx, Dy, Dz, _N, _P1, _P2) when (Dx + Dy + Dz) < 3 -> [];
 handle_node_parent(true, false, Dx, Dy, Dz, _N, _P1, _P2) when (Dx + Dy + Dz) < 3 -> [];
 handle_node_parent(false, true, Dx, Dy, Dz, _N, _P1, _P2) when (Dx + Dy + Dz) < 3 -> [];
 
-%% both points in the node....
-handle_node_parent(true, true, _Dx, _Dy, _Dz, Node, Point1, Point2) ->
-    Beyond1 = beyond(Node, Point1),
-    Beyond2 = beyond(Node, Point2),
-    case is_all_zeroes(Beyond1) and is_all_ones(Beyond2) of
-        %% the points encompass all of the node..
-        true ->
-            ?debugFmt("return just the node",[]),
-                [Node];
-        %% the actual area is within the node
-        false ->
-            %% ... recurse into node
-            new_box_to_volume(Node, Point1, Point2)
-    end;
 
 
 %% if both points are outside the node, the box may still overlap
@@ -410,7 +415,7 @@ handle_node_parent(In1, In2,
     NewPoint2 = #ot_node_id{depth = Point2#ot_node_id.depth,
                             x =NX2, y =NY2, z = NZ2
                            },
-
+    
     new_box_to_volume(Node, NewPoint1, NewPoint2).
 
 
@@ -441,38 +446,33 @@ make_sub_node_points(true, false, 0, false, _Depth, Dim, P1, P2) ->
       P2Val = get_value(P2, Dim),
       {P1Val, P2Val};
 
-make_sub_node_points(true, false, 1, false, Depth, Dim, P1, P2) ->
+make_sub_node_points(true, false, 1, _Upper, Depth, Dim, P1, P2) ->
       P1Val = get_value(P1, Dim),
       P2Val = get_value(P2, Dim),
       ND = get_depth(P2),
-      {P1Val, right_wall_calc(P2Val, ND, Depth)};
+      {P1Val, right_wall_calc(P1Val, ND, Depth)};
 
-make_sub_node_points(false, true, 0, true, _Depth, Dim, P1, P2) ->
+make_sub_node_points(false, true, 0, _Upper, _Depth, Dim, P1, P2) ->
       P1Val = get_value(P1, Dim),
       P2Val = get_value(P2, Dim),
       {P1Val, P2Val};
 
-make_sub_node_points(false, true, 0, false, _Depth, Dim, P1, P2) ->
+make_sub_node_points(false, true, 1, _Upper, Depth, Dim, P1, P2) ->
       P1Val = get_value(P1, Dim),
       P2Val = get_value(P2, Dim),
-      {P1Val, P2Val};
-
-make_sub_node_points(false, true, 1, true, Depth, Dim, P1, P2) ->
-      P1Val = get_value(P1, Dim),
-      P2Val = get_value(P2, Dim),
-      {left_wall_calc(P1Val,Depth), P2Val};
+      {left_wall_calc(P2Val,Depth), P2Val};
 
 
 make_sub_node_points(false, false, 1, false, Depth, Dim, P1, P2) ->
       P1Val = get_value(P1, Dim),
       P2Val = get_value(P2, Dim),
       ND = get_depth(P2),
-      {P1Val, right_wall_calc(P2Val, ND, Depth)};
+      {P1Val, right_wall_calc(P1Val, ND, Depth)};
 
 make_sub_node_points(false, false, 1, true, Depth, Dim, P1, P2) ->
       P1Val = get_value(P1, Dim),
       P2Val = get_value(P2, Dim),
-      {left_wall_calc(P1Val,Depth), P2Val};
+      {left_wall_calc(P2Val,Depth), P2Val};
 
 make_sub_node_points(In1, In2, Delta, Upper, Depth, Dim, P1, P2) ->
     %% should not call this function, but be handled above
