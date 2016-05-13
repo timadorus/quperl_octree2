@@ -58,16 +58,10 @@ unit_test_() ->
                     , ?_test(test_right_wall())
                     , ?_test(test_right_wall_at())
                     , ?_test(test_default_max_depth())
-                    , ?_test(test_xor_dim())
-%%                     , ?_test(test_split())
                     , ?_test(test_inner())
                     , ?_test(test_leaf())
                     , ?_test(test_previous())
-                    , ?_test(test_sweep())
                     , ?_test(test_common_prefix())
-                    , ?_test(test_filter_full_area())
-%%                     , ?_test(test_box_to_volume2())
-%%                     , ?_test(test_box_to_volume1())
                     , ?_test(test_for_each_child())
                     , ?_test(test_is_ancestor_of())
                     , ?_test(test_beyond())
@@ -105,26 +99,6 @@ test_new_volume1(_Args) ->
 
 ok.
 
-test_new_volume2(_Args) ->
-
-    TestCases = [{[],{0.479, 0.499, 0.499}, {0.501, 0.501, 0.501}},
-                 {[],{0.479, 0.479, 0.499}, {0.501, 0.501, 0.501}},
-                 {[],{0.479, 0.499, 0.479}, {0.501, 0.501, 0.501}},
-                 {[],{0.499, 0.499, 0.499}, {0.501, 0.501, 0.501}},
-                 {{badarg, val}, {0.0, 0.0, 0.0}, {2.0, 2.0, 2.0}}],
-
-    lists:foreach(fun({R,P1, P2}) ->
-                          N1 = quperl_octree:to_node_id(P1),
-                          N2 = quperl_octree:to_node_id(P2),
-                          L1 = quperl_octree:box_to_volume([{N1,N2}],[]),
-                          ?debugFmt("~nP1: ~p~nP2: ~p~nbox: ~p",
-                                    [quperl_octree:to_node_list(N1),
-                                     quperl_octree:to_node_list(N2),
-                                     L1]),
-                          ?assertEqual(R, catch quperl_octree:new_volume(P1, P2))
-                          end, TestCases),
-
-    ok.
 
 
 test_new_box_to_volume() ->
@@ -170,11 +144,11 @@ test_new_box_to_volume() ->
 
 
     lists:foreach(fun({P1, P2, Expected}) ->
-                          Result = quperl_octree:new_box_to_volume(quperl_octree:to_node_id(P1), 
+                          Result = quperl_octree:new_box_to_volume(quperl_octree:to_node_id(P1),
                                                                    quperl_octree:to_node_id(P2)),
                           PrepResult = as_node_list(Result),
-                          ?debugVal(PrepResult),
-                          ?debugVal(length(Result)),
+%%                           ?debugVal(PrepResult),
+%%                           ?debugVal(length(Result)),
                           ?assertEqual(Expected, PrepResult)
                   end, TestVals),
     ok.
@@ -215,7 +189,7 @@ test_new_box_to_volume() ->
 %%    |     |      |
 %%    --------------
 %%
-%% Variations: 
+%% Variations:
 %%  13: like 1, but with P1 in the upper node at the given level
 %%  14: like 8, but with P2 in the lower node at the given level
 %%  15: like 1, but with a longer prefix
@@ -324,7 +298,7 @@ test_handle_node_parent() ->
                , {false, true,  0,0,1,[1],[0,1],[0,2], []}  %%    :
                , {false, true,  0,1,1,[1],[0,1],[0,2], []}  %%    :
                , {true,  true,  0,0,0,[0,7], [0,7,7,7,0],[0,7,7,7,7], [[0,7,7,7]]}
-               
+
 %% Exception: {badargs,unkown_combination,
 %%                     {true,false,1,true,3,x,
 %%                           [0,7,7,7,7...],
@@ -363,6 +337,8 @@ test_handle_node_parent() ->
                           ?assertEqual(Expected, Result)
                   end, TestVals),
     ok.
+
+-dialyzer({no_match, set_value/3}).
 
 -spec set_value(Val :: non_neg_integer(), Dim :: x|y|z, Depth :: non_neg_integer()) -> #ot_node_id{}.
 set_value(Val, x, Depth) -> #ot_node_id{depth = Depth, x = Val};
@@ -492,6 +468,7 @@ test_is_ancestor_of() ->
 
     ok.
 
+-dialyzer({nowarn_function, test_previous/0}).
 
 test_previous() ->
     TestCases = [ {[1],[0]}
@@ -513,6 +490,8 @@ test_previous() ->
     ok.
 
 
+-dialyzer({nowarn_function, test_leaf/0}).
+
 test_leaf() ->
 
 %%     ?debugFmt("new_node_id([1,2,4]): ~p",[new_node_id([1,2,4])]),
@@ -529,6 +508,8 @@ test_leaf() ->
     ok.
 
 
+-dialyzer({no_match, test_inner/0}).
+
 test_inner() ->
 
 %%     ?debugFmt("~n     [1,2,3]: ~p~ninner([1,2,3,4]): ~p",[new_node_id([1,2,3]),
@@ -544,122 +525,6 @@ test_inner() ->
     ok.
 
 
-test_box_to_volume1() ->
-
-    TestVals = [ { [{ [1,0], [1,7] }],
-                   [[1]]
-                 },
-                 { [{ {0.479, 0.499, 0.499}, {0.501, 0.501, 0.501} }],
-                   [[1]]
-                 }
-               ],
-
-    lists:foreach(fun({L, Out}) ->
-                          InList = lists:map(fun({P1, P2}) -> {quperl_octree:to_node_id(P1),
-                                                               quperl_octree:to_node_id(P2)} end, L),
-
-                          ?assertEqual(Out, as_node_list(quperl_octree:box_to_volume(InList)))
-                  end, TestVals),
-
-ok.
-
-
-test_box_to_volume2() ->
-
-    TestVals = [ {[], [quperl_octree:to_node_id([1])], [[1]]}
-               , {[{quperl_octree:to_node_id([1,0]),
-                    quperl_octree:to_node_id([1,7])}], [],
-                  [[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[1,7]]}
-               ],
-    lists:foreach(fun({L,R, Out}) ->
-        ?assertEqual(Out, as_node_list(quperl_octree:box_to_volume(L, R)))
-                          end, TestVals),
-
-    ok.
-
-
-
-test_filter_full_area() ->
-
-    Inputs = [{[],
-               [],
-               []},
-              {[{[3,1,6],[3,1,6]}],
-               [],
-               [[3,1,6]]},
-              {[{[3,1,0],[3,1,7]}],
-               [],
-               [[3,1]]},
-              {[{[3,1,1],[3,1,7]}],
-               [{[3,1,1],[3,1,7]}],
-               []},
-              {[{[3,1,1],[3,1,7]},{[3,1,0],[3,1,7]}],
-               [{[3,1,1],[3,1,7]}],
-               [[3,1]]},
-              {[{[3,4,5,0],[3,4,5,0]},  % this function does not sweep, but must maintain sort order
-                {[3,4,5,1],[3,4,5,1]},
-                {[3,4,5,2],[3,4,5,2]},
-                {[3,4,5,3],[3,4,5,3]},
-                {[3,4,5,4],[3,4,5,4]},
-                {[3,4,5,5],[3,4,5,5]},
-                {[3,4,5,6],[3,4,5,6]},
-                {[3,4,5,7],[3,4,5,7]}],
-               [],
-               [[3,4,5,0],
-                [3,4,5,1],
-                [3,4,5,2],
-                [3,4,5,3],
-                [3,4,5,4],
-                [3,4,5,5],
-                [3,4,5,6],
-                [3,4,5,7]]}
-             ],
-
-    lists:foreach(fun({In, Split, Areas}) ->
-
-                          InNodes = lists:map(fun({P1, P2}) -> {quperl_octree:to_node_id(P1),
-                                                                quperl_octree:to_node_id(P2)} end,
-                                              In),
-
-                          {SplitResult, AreaResult} = quperl_octree:filter_full_area(InNodes),
-                          ?assertEqual({Split,Areas},
-                                       {as_node_list(SplitResult),
-                                        as_node_list(AreaResult)})
-                          end, Inputs),
-
-    ok.
-
-
-test_sweep() ->
-
-    Inputs = [{[],[]},
-              {[[1,0]],
-               [[1,0]]},
-              {[[1,0],[1,1]],
-               [[1,0],[1,1]]},
-              {[[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[1,7]],
-               [[1]]},
-              {[[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[1,7],[2,0]],
-               [[1],[2,0]]},
-              {[[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[2,0]],
-               [[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[2,0]]},
-              {[[1,0,1],[1,1,1],[1,2,1],[1,3,1],[1,4,1],[1,5,1],[1,6,1],[1,7,1]],
-               [[1,0,1],[1,1,1],[1,2,1],[1,3,1],[1,4,1],[1,5,1],[1,6,1],[1,7,1]]},
-              {[[1,0,0],[1,1,0],[1,2,0],[1,3,0],[1,4,0],[1,5,0],[1,6,0],[1,7,0]],
-               [[1,0,0],[1,1,0],[1,2,0],[1,3,0],[1,4,0],[1,5,0],[1,6,0],[1,7,0]]},
-              {[[1,0,0],[1,1,1],[1,2,2],[1,3,3],[1,4,4],[1,5,5],[1,6,6],[1,7,7]],
-               [[1,0,0],[1,1,1],[1,2,2],[1,3,3],[1,4,4],[1,5,5],[1,6,6],[1,7,7]]},
-              {[[1,0,0],[1,1,1],[1,2,2],[1,3,3],[1,3,4],[1,5,5],[1,6,6],[1,7,7]],
-               [[1,0,0],[1,1,1],[1,2,2],[1,3,3],[1,3,4],[1,5,5],[1,6,6],[1,7,7]]}
-             ],
-
-    lists:foreach(fun({In, Expected}) ->
-                          InList = lists:map(fun quperl_octree:to_node_id/1, In),
-                          Result = as_node_list(quperl_octree:sweep(InList)),
-                          ?assertEqual(Expected, Result)
-                          end, Inputs),
-
-    ok.
 test_common_prefix() ->
 
         Inputs = [ {[0],[0],[0],[],[]}
@@ -732,77 +597,6 @@ test_common_prefix() ->
     ok.
 
 
-%% // does not have test for length(TreePrefix) == MaxDepth, as this would mean
-%% // that P1 and P2 are equal
-%% split(TreePrefix, RestDepth,P1, P2):
-%%   F1 = first(P1)
-%%   F2 = first(P2)
-%%
-%%   if F1 == F2
-%%     R1 = rest(P1)
-%%     R2 = rest(R2)
-%%     return split([F1 | TreePrefx], RestDepth-1, R1, R2)
-%%   else
-%%     split_list = split_borders([{P1,P2}],x)
-%%     split_list = split_borders(split_list,y)
-%%     split_list = split_borders(split_list,z)
-%%     return prepend_each(split_list, TreePrefix)  # returns 2-8 areas
-%%
-%% This function will not convert tuples of (P1,P2) with P1 == P2 into
-%% node ids, this should be done by the calling function.
-%%
-test_split() ->
-    TestVals = [ %% {[0],[0]} excluded as it would be P1 == P2, excluded by precondition
-                {[0],[1],   [{[0],[0]}, {[1],[1]} ]},
-                {[0],[2],   [{[0],[0]}, {[2],[2]} ]},
-                {[0],[3],
-                 [{[0],[0]}, {[1],[1]}, {[2],[2]}, {[3],[3]} ]},
-                {[0],[4],   [{[0],[0]}, {[4],[4]} ]},
-                {[0],[5],
-                 [{[0],[0]}, {[1],[1]}, {[4],[4]}, {[5],[5]} ]},
-                {[0],[6],
-                 [{[0],[0]}, {[2],[2]}, {[4],[4]}, {[6],[6]} ]},
-                {[0],[7],
-                 [{[0],[0]}, {[1],[1]}, {[2],[2]}, {[3],[3]},
-                  {[4],[4]}, {[5],[5]}, {[6],[6]}, {[7],[7]} ]},
-                {[2,0],[2,1],
-                 [
-                  {[2,0],[2,0]},
-                  {[2,1],[2,1]}
-                 ]},
-                {[3,2,0],[3,2,1],
-                 [
-                  {[3,2,0],[3,2,0]},
-                  {[3,2,1],[3,2,1]}
-                 ]},
-                {[5,3,2,0],[5,3,2,1],
-                 [
-                  {[5,3,2,0],[5,3,2,0]},
-                  {[5,3,2,1],[5,3,2,1]}
-                 ]},
-                {[1,2,3,4], [7,6,5,4],
-                 [
-                  {[1,2,3,4],[1,6,7,6]},
-                  {[3,0,1,4],[3,6,5,4]},
-                  {[5,2,3,0],[5,6,7,6]},
-                  {[7,0,1,0],[7,6,5,4]}
-                 ]}],
-
-
-    lists:foreach(fun do_test_split/1, TestVals).
-
-do_test_split({L1, L2, Expected}) ->
-    P1 = quperl_octree:to_node_id(L1, ?DEFAULT_MAX_DEPTH),
-    P2 = quperl_octree:to_node_id(L2, ?DEFAULT_MAX_DEPTH),
-
-    Result = quperl_octree:split([], ?DEFAULT_MAX_DEPTH, P1, P2),
-
-%%     ?debugFmt("~nInput:~n L1: ~p,~n L2: ~p,~n Result: ~p~n", [L1,L2, as_node_list(Result)]),
-    timer:sleep(100),
-
-    ?assertEqual(Expected,as_node_list(Result)),
-
-    ok.
 
 
 test_is_all_zeroes() ->
@@ -814,7 +608,7 @@ test_is_all_zeroes() ->
     ?assertEqual(false, quperl_octree:is_all_zeroes(quperl_octree:to_node_id([1], ?DEFAULT_MAX_DEPTH))),
     ?assertEqual(false, quperl_octree:is_all_zeroes(quperl_octree:to_node_id([7], ?DEFAULT_MAX_DEPTH))),
 
-    ?assertError(function_clause, quperl_octree:is_all_zeroes(0)),
+%%     ?assertError(function_clause, quperl_octree:is_all_zeroes(0)),
     ok.
 
 test_is_all_ones() ->
@@ -831,7 +625,7 @@ test_is_all_ones() ->
     ?assertEqual(true, quperl_octree:is_all_ones(quperl_octree:to_node_id([7], ?DEFAULT_MAX_DEPTH))),
     ?assertEqual(true, quperl_octree:is_all_ones(quperl_octree:to_node_id([7,7], ?DEFAULT_MAX_DEPTH))),
 
-    ?assertError(function_clause, quperl_octree:is_all_ones(3)),
+%%     ?assertError(function_clause, quperl_octree:is_all_ones(3)),
     ok.
 
 test_node_id_bit_count() ->
@@ -844,6 +638,8 @@ test_node_id_bit_count() ->
     ?assertEqual(6, quperl_octree:bit_count(#ot_node_id{depth=64, x=Val, y=Val, z=Val})),
 
     ok.
+
+-dialyzer({nowarn_function, test_first_node/0}).
 
 test_first_node() ->
 
@@ -862,6 +658,8 @@ test_first_node() ->
     ?assertThrow(zero_depth, quperl_octree:first_node(#ot_node_id{depth=0})),
 
     ok.
+
+-dialyzer({no_match, test_is_equal/0}).
 
 test_is_equal() ->
     NI1 = quperl_octree:to_node_id([], ?DEFAULT_MAX_DEPTH),
@@ -886,6 +684,8 @@ test_is_equal() ->
     ?assertNot(quperl_octree:is_equal(NI4, NI2)),
 
     ok.
+
+-dialyzer({no_match, test_rest_nodes/0}).
 
 test_rest_nodes() ->
 
@@ -1041,38 +841,6 @@ test_default_max_depth() ->
     ok.
 
 
-test_xor_dim() ->
-    TestVals = [{0, 1, 1, z},
-                {1, 0, 1, z},
-                {1, 1, 0, z},
-                {0, 0, 0, z},
-
-                {0, 0, 2, z},
-                {0, 0, 4, z},
-                {0, 2, 2, z},
-                {0, 4, 4, z},
-
-                {0, 2, 2, y},
-                {1, 0, 2, y},
-                {1, 2, 0, y},
-                {0, 0, 0, y},
-
-                {0, 4, 4, x},
-                {1, 0, 4, x},
-                {1, 4, 0, x},
-                {0, 0, 0, x},
-
-                {1, 6, 7, z},
-                {1, 5, 7, y},
-                {1, 3, 7, x}],
-
-    lists:foreach(fun({Expect, P1, P2, Dim}) ->
-%%                           ?debugFmt("Expect : xor_dim(~p, ~p, ~p) -> ~p",[P1,P2,Dim,Expect]),
-                          ?assertEqual(Expect, quperl_octree:xor_dim(P1,P2,Dim))
-                          end, TestVals),
-    ok.
-
-
 %%  set all the bits but the first to 1
 test_right_wall() ->
 
@@ -1210,23 +978,23 @@ as_node_list([{P1, P2}|Rest]) ->
    [{quperl_octree:to_node_list(P1), quperl_octree:to_node_list(P2)} | as_node_list(Rest)].
 
 
-%% bap/1
-%% bit at pos (position is 0 - Max Depth)
--spec bap(Val :: non_neg_integer() | [pos_integer()] | {pos_integer(), pos_integer()}) -> non_neg_integer().
-bap(P) -> bap(P, 0).
+%% %% bap/1
+%% %% bit at pos (position is 0 - Max Depth)
+%% -spec bap(Val :: non_neg_integer() | [non_neg_integer()] | {non_neg_integer(), non_neg_integer()}) -> non_neg_integer().
+%% bap(P) -> bap(P, 0).
+%%
+%% bap({PStart, PEnd}, Acc) ->
+%%     bap(lists:seq(PStart, PEnd), Acc);
+%%
+%% bap(P,Acc) when is_integer(P) -> Acc bor (1 bsl (?DEFAULT_MAX_DEPTH - P));
+%%
+%% bap(PList, Rest) when is_list(PList) ->
+%%     lists:foldl(fun(P, Acc) ->
+%%                         bap(P,Acc)
+%%                         end, Rest, PList).
 
-bap({PStart, PEnd}, Acc) ->
-    bap(lists:seq(PStart, PEnd), Acc);
 
-bap(P,Acc) when is_integer(P) -> Acc bor (1 bsl (?DEFAULT_MAX_DEPTH - P));
-
-bap(PList, Acc) when is_list(PList) ->
-    lists:foldl(fun(P, Acc) ->
-                        bap(P,Acc)
-                        end, Acc, PList).
-
-
--spec bitlist(V :: non_neg_integer()) -> [pos_integer()].
+-spec bitlist(V :: non_neg_integer()) -> [non_neg_integer()].
 bitlist(V) -> bitlist(V,?DEFAULT_MAX_DEPTH,[]).
 
 bitlist(0, _, L) -> L;
@@ -1237,3 +1005,4 @@ bitlist(V, I, L) ->
           1 ->
               bitlist(V bsr 1, I - 1, [I | L])
               end.
+

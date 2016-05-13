@@ -8,10 +8,14 @@
 
 
 suite() -> [].
-groups() -> [{test_octree, [sequence, {repeat, 2}], 
-              [many_points, many_volumes]}].
-all() -> [{group, test_octree}].
-    
+groups() -> [ {test_octree, [sequence, {repeat, 2}],
+              [many_points, many_volumes]}
+            , {profile, [sequence],
+              [profile_new_volume]}].
+
+all() -> [ {group, test_octree}
+         , {group, profile}].
+
 init_per_suite(Config) ->
     Config.
 
@@ -19,7 +23,7 @@ end_per_suite(_Config) -> ok.
 
 init_per_group(_GroupName, Config) ->
     Config.
-    
+
 end_per_group(_GroupName, Config) ->
     Config.
 
@@ -38,8 +42,8 @@ end_per_testcase(_Other, _Config) ->
 %%
 
 many_points(_Config) ->
-    teu_perf_measure:test_avg_func("point to pos_code", 
-                                   ?MODULE, to_pos_code_param_wrap, [], 
+    teu_perf_measure:test_avg_func("point to pos_code",
+                                   ?MODULE, to_pos_code_param_wrap, [],
                                    [], fun gen_point/1, 10000),
     ok.
 
@@ -49,13 +53,13 @@ to_pos_code_param_wrap(Pos) ->
 
 
 many_volumes(_Config) ->
-    teu_perf_measure:test_avg_func("volume to node list", 
-                                   ?MODULE, new_volume_param_wrap, [], 
-                                   [], fun gen_volume/1, 10),
+    teu_perf_measure:test_avg_func("volume to node list",
+                                   ?MODULE, new_volume_param_wrap, [],
+                                   [], fun gen_volume/1, 1000),
     ok.
 
 
-%% TODO: convert all nodes in volume 
+%% TODO: convert all nodes in volume
 new_volume_param_wrap({P1, P2}) ->
       quperl_octree:new_volume(P1, P2).
 
@@ -84,6 +88,21 @@ gen_point(_OldPoint) ->
     Y = random:uniform(),
     Z = random:uniform(),
     {X,Y,Z}.
+
+
+do_multiple_volumes() ->
+    lists:foreach(fun(_) ->
+                          {P1, P2} = gen_volume(ignore),
+                          quperl_octree:new_volume(P1, P2)
+                  end, lists:seq(1, 100)),
+    ok.
+
+
+profile_new_volume(_Config) ->
+    eprof:start(),
+    eprof:profile(fun do_multiple_volumes/0),
+    eprof:analyze(total, [sort, mfa]),
+    eprof:stop().
 
 %%
 %%   Utility Functions

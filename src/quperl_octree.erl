@@ -43,18 +43,25 @@
 
 -ifdef(TEST).
 %% export the private functions for testing only.
--export([normalize/2, to_node_id/3,
-         box_to_volume/1, box_to_volume/2, filter_full_area/1,
-         common_prefix/2, first_node/1, rest_nodes/1,
-         append_node/2, xval/1, yval/1, zval/1, is_all_ones/1,
-         is_all_zeroes/1, bit_count/1, default_max_depth/0, split/4,
-         xor_dim/3, sweep/1, previous/1, new_box_to_volume/2,
+-export([normalize/2, append_node/2, first_node/1,
+         common_prefix/2, previous/1,
+         is_all_ones/1, is_all_zeroes/1, xval/1, yval/1, zval/1,
+         rest_nodes/1, bit_count/1, default_max_depth/0,
          for_each_child/3, is_ancestor_of/2, beyond/2, get_code_at/2,
          left_wall/2, right_wall/2, left_wall/3, right_wall/3,
          handle_node_parent/8, make_sub_node_points/8,
-         left_wall_calc/2, right_wall_calc/3, prepend_node/2
+         left_wall_calc/2, right_wall_calc/3, prepend_node/2,
+         new_box_to_volume/2
         ]).
 -endif.
+
+%% to_node_id/3,
+%%          box_to_volume/1, box_to_volume/2, filter_full_area/1,
+%%
+%%
+%%          split/4,
+%%          sweep/1,
+%%
 
 %% new/0
 %% --------------------------------------------------------------------
@@ -91,7 +98,8 @@ new_volume(NodeList) when is_list(NodeList) ->
 %% --------------------------------------------------------------------
 new_volume(Point1, Point2)when is_record(Point1, ot_node_id)
                            and is_record(Point2, ot_node_id) ->
-    new_volume(box_to_volume([normalize(Point1,Point2)]));
+    {P1, P2} = normalize(Point1,Point2),
+    new_volume(new_box_to_volume(P1,P2));
 
 new_volume(P1 = {_X1, _Y1, _Z1}, P2 = {_X2, _Y2, _Z2}) ->
     new_volume(to_node_id(P1, ?DEFAULT_MAX_DEPTH),
@@ -151,7 +159,7 @@ to_node_id(NodeList, Depth) when is_list(NodeList) ->
 %% It will throw <tt>zero_depth</tt> if the node path is of length 0.
 %%
 %% @end
--spec leaf(Point :: #ot_node_id{}) -> ot_child_code() | no_return().
+-spec leaf(Point :: ot_node_id()) -> ot_child_code() | no_return().
 %% --------------------------------------------------------------------
 leaf(#ot_node_id{depth=0}) -> throw(zero_depth);
 
@@ -232,7 +240,7 @@ get_value(Node, z) -> Node#ot_node_id.z.
 to_node_id(Depth, X, Y, Z) -> #ot_node_id{depth=Depth, x=X, y=Y, z=Z}.
 
 
--spec get_code_at(Depth :: pos_integer(), Node :: #ot_node_id{}) -> ot_child_code().
+-spec get_code_at(Depth :: non_neg_integer(), Node :: #ot_node_id{}) -> ot_child_code().
 get_code_at(Depth, Node) ->
     Shift = (?DEFAULT_MAX_DEPTH - Depth),
     Mask = (1 bsl Shift),
@@ -247,7 +255,7 @@ get_code_at(Depth, Node) ->
 %% @doc execute function on each child of a node.
 %% @end
 %% --------------------------------------------------------------------
--spec for_each_child(N :: #ot_node_id{}, 
+-spec for_each_child(N :: #ot_node_id{},
                      F :: fun((Child :: #ot_node_id{}, ExtraIn :: term()) -> term()),
                      Extra :: term()) -> [term()].
 for_each_child(Node, Fun, Extra) ->
@@ -298,16 +306,13 @@ new_box_to_volume(_P, Point, Point) -> [Point];
 new_box_to_volume(Parent, Point1, Point2) ->
     Beyond1 = beyond(Parent, Point1),
     Beyond2 = beyond(Parent, Point2),
-    
-    ?debugVal(to_node_list(Parent)),?debugVal(to_node_list(Beyond1)),?debugVal(to_node_list(Beyond2)),
+
     case is_all_zeroes(Beyond1) and is_all_ones(Beyond2) of
         %% the points encompass all of the node..
         true ->
-            ?debugMsg("return node"),
             [Parent];
         %% the actual area is within the node
         false ->
-            ?debugFmt("... recurse into node Depth:~p",[get_depth(Parent)]),
             for_each_child(Parent, fun box_to_vol_per_node/2, {Point1, Point2})
 end.
 
@@ -319,8 +324,6 @@ box_to_vol_per_node(Node, {Point1, Point2}) ->
                       V2 = get_code_at(get_depth(Node), Point2),
 
                       Dxyz = V1 bxor V2,
-%%                       io:fwrite(user, <<"Par1: ~p, Par2: ~p, V1: ~p, V2: ~p, Dxyz: ~p, Depth: ~p\n">>,
-%%                                 [Parent1, Parent2, V1,V2, Dxyz, get_depth(Parent)]),
                       Dx = xval(Dxyz), Dy = yval(Dxyz), Dz = zval(Dxyz),
 
                       handle_node_parent(Parent1, Parent2, Dx,Dy,Dz, Node, Point1, Point2).
@@ -415,7 +418,7 @@ handle_node_parent(In1, In2,
     NewPoint2 = #ot_node_id{depth = Point2#ot_node_id.depth,
                             x =NX2, y =NY2, z = NZ2
                            },
-    
+
     new_box_to_volume(Node, NewPoint1, NewPoint2).
 
 
@@ -446,10 +449,9 @@ make_sub_node_points(true, false, 0, false, _Depth, Dim, P1, P2) ->
       P2Val = get_value(P2, Dim),
       {P1Val, P2Val};
 
-make_sub_node_points(true, false, 1, _Upper, Depth, Dim, P1, P2) ->
+make_sub_node_points(true, false, 1, _Upper, Depth, Dim, P1, _P2) ->
       P1Val = get_value(P1, Dim),
-      P2Val = get_value(P2, Dim),
-      ND = get_depth(P2),
+      ND = get_depth(P1),
       {P1Val, right_wall_calc(P1Val, ND, Depth)};
 
 make_sub_node_points(false, true, 0, _Upper, _Depth, Dim, P1, P2) ->
@@ -457,20 +459,17 @@ make_sub_node_points(false, true, 0, _Upper, _Depth, Dim, P1, P2) ->
       P2Val = get_value(P2, Dim),
       {P1Val, P2Val};
 
-make_sub_node_points(false, true, 1, _Upper, Depth, Dim, P1, P2) ->
-      P1Val = get_value(P1, Dim),
+make_sub_node_points(false, true, 1, _Upper, Depth, Dim, _P1, P2) ->
       P2Val = get_value(P2, Dim),
       {left_wall_calc(P2Val,Depth), P2Val};
 
 
-make_sub_node_points(false, false, 1, false, Depth, Dim, P1, P2) ->
+make_sub_node_points(false, false, 1, false, Depth, Dim, P1, _P2) ->
       P1Val = get_value(P1, Dim),
-      P2Val = get_value(P2, Dim),
-      ND = get_depth(P2),
+      ND = get_depth(P1),
       {P1Val, right_wall_calc(P1Val, ND, Depth)};
 
-make_sub_node_points(false, false, 1, true, Depth, Dim, P1, P2) ->
-      P1Val = get_value(P1, Dim),
+make_sub_node_points(false, false, 1, true, Depth, Dim, _P1, P2) ->
       P2Val = get_value(P2, Dim),
       {left_wall_calc(P2Val,Depth), P2Val};
 
@@ -482,7 +481,7 @@ make_sub_node_points(In1, In2, Delta, Upper, Depth, Dim, P1, P2) ->
 
 %% beyond/2
 %% --------------------------------------------------------------------
-%% @doc construct a node from a tree path beyond an ancester.
+%% @doc construct a node from a tree path beyond an ancestor.
 %%
 %% This basically a tail function on the node list.
 %%
@@ -508,109 +507,6 @@ beyond(A, #ot_node_id{depth=PD, x=X, y=Y, z=Z}) ->
     NewZ = ((Z band Mask) bsl AD),
     #ot_node_id{depth=PD-AD, x=NewX , y= NewY, z= NewZ}.
 
-%% box_to_volume/1
-%% --------------------------------------------------------------------
-%% @doc convert an axis aligned bounding box to a list of node ids.
-%% @end
-%% --------------------------------------------------------------------
--spec box_to_volume(Inlist :: [{ot_node_id(), ot_node_id()}]) ->
-          [ot_node_id()].
-box_to_volume(InList) -> sweep(box_to_volume(InList, [])).
-
-%% box_to_volume/2
-%% --------------------------------------------------------------------
-%% @doc convert an axis aligned bounding box to a list of node ids.
-%% @end
-%% --------------------------------------------------------------------
--spec box_to_volume(Inlist :: [{ot_node_id(), ot_node_id()}],
-                    OutList :: [{ot_node_id(), ot_node_id()}]) ->
-          [ot_node_id()].
-box_to_volume([], Result) -> Result;
-
-box_to_volume([{P1,P2}| Rest], Result) ->
-    case is_equal(P1, P2) of
-        true  -> box_to_volume(Rest, [P1|Result]);
-
-        false -> SplitList = split([], ?DEFAULT_MAX_DEPTH, P1, P2),
-
-%%                  ?debugFmt("SubTrees Len: ~p", [length(SplitList)]),
-
-                 {SplitList2, Areas} = filter_full_area(SplitList),
-
-%%                  ?debugFmt("Rest Len: ~p, SplitList Len: ~p, Result Len: ~p, Areas Len: ~p",
-%%                            [length(Rest), length(SplitList2), length(Result), length(Areas)]),
-
-                 box_to_volume(Rest ++ SplitList2, Result ++ Areas)
-    end.
-
-%% split/4
-%% --------------------------------------------------------------------
-%% @doc split along topmost 'border' in tree
-%%
-%% Precondition: P1 =/= P2
-%%
-%% @end
--spec split(TreePrefix :: [ot_child_code()], RestDepth :: non_neg_integer(),
-            P1 :: #ot_node_id{}, P2 :: #ot_node_id{}) ->
-          [ {#ot_node_id{}, #ot_node_id{}} ].
-%% --------------------------------------------------------------------
-split(TreePrefix, RestDepth, P1, P2) ->
-
-    F1 = first_node(P1), F2 = first_node(P2),
-
-%%     ?debugFmt("TreePrefix: ~p, RestDepth: ~p, F1: ~p, F2: ~p, P1: ~p, P2: ~p",[TreePrefix, RestDepth, F1, F2, P1, P2]),
-
-    case F1 == F2 of
-        true ->
-            R1 = rest_nodes(P1), R2 = rest_nodes(P2),
-            split(TreePrefix ++ [F1], RestDepth-1, R1, R2);
-        false ->
-            List1 = split_borders([{P1,P2}],x),
-            List2 = split_borders(List1,y),
-            List3 = split_borders(List2,z),
-
-            lists:map(fun({Node1, Node2}) ->
-                              {prepend_path(Node1, TreePrefix),
-                               prepend_path(Node2, TreePrefix)}
-                      end, List3)
-    end.
-
-%% split_borders/2
-%% --------------------------------------------------------------------
-%% @doc split a number of segments in a list.
-%%
-%% @end
--spec split_borders(Segments :: [ {#ot_node_id{}, #ot_node_id{}} ],
-                    Dim :: x|y|z) ->
-          [ {#ot_node_id{}, #ot_node_id{}} ].
-%% --------------------------------------------------------------------
-split_borders(Segments, Dim) ->
-    lists:foldl(fun({P1, P2},Acc) ->
-                        Acc ++ split_border(P1,P2,Dim)
-                        end, [], Segments).
-
-%% split_border/3
-%% --------------------------------------------------------------------
-%% @doc split segment along top most border based on given dimension.
-%%
-%%   the points must not have a common prefix.
-%%
-%% @end
--spec split_border(P1 :: #ot_node_id{}, P2 :: #ot_node_id{}, Dim :: x|y|z) ->
-          [{#ot_node_id{},#ot_node_id{}}].
-%% --------------------------------------------------------------------
-split_border(P1,P2,Dim) ->
-    F1 = first_node(P1),
-    F2 = first_node(P2),
-
-%%     ?debugFmt("F1: ~p, F2: ~p", [F1, F2]),
-
-    case xor_dim(F1,F2,Dim) of
-     %% both areas are the same
-      0  ->  [{P1, P2}];
-     %% areas are different
-      1  ->  [{P1, right_wall(P2,Dim)},{left_wall(P1,Dim), P2}]
-    end.
 
 
 -define(LEFT_WALL, 1 bsl (?DEFAULT_MAX_DEPTH - 1)).
@@ -637,7 +533,7 @@ left_wall(Point, Dim) ->
 %% <p>Precondition: D must not be greater than node depth
 %%
 %% @end
--spec left_wall(#ot_node_id{}, Depth :: pos_integer(), x|y|z) -> #ot_node_id{}.
+-spec left_wall(#ot_node_id{}, Depth :: non_neg_integer(), x|y|z) -> #ot_node_id{}.
 %% --------------------------------------------------------------------
 left_wall(Point, Depth, x) ->
     Point#ot_node_id{x = left_wall_calc(Point#ot_node_id.x, Depth)};
@@ -670,7 +566,7 @@ right_wall(Point, Dim) ->
 %% @doc set all bits but the first of given dimension to one, thus following the right
 %%      wall of the octree area.
 %% @end
--spec right_wall(#ot_node_id{}, Depth :: pos_integer(), x|y|z) -> #ot_node_id{}.
+-spec right_wall(#ot_node_id{}, Depth :: non_neg_integer(), x|y|z) -> #ot_node_id{}.
 %% --------------------------------------------------------------------
 right_wall(Point = #ot_node_id{depth = ND, x = X}, Depth, x) ->
     Point#ot_node_id{x = right_wall_calc(X, ND, Depth)};
@@ -691,16 +587,6 @@ right_wall_calc(In, ND, Depth) ->
     ((In band Mask) bor NewBits).
 
 
-%% prepend_path/2
-%% --------------------------------------------------------------------
-%% @doc prepend a path segment to a node.
-%% @end
--spec prepend_path(Node :: #ot_node_id{}, Prefix :: [ ot_child_code()]) -> #ot_node_id{}.
-%% --------------------------------------------------------------------
-prepend_path(Node, []) -> Node;
-
-prepend_path(Node, [First|Rest]) ->
-    prepend_node(First, prepend_path(Node, Rest)).
 
 %% prepend_node/2
 %% --------------------------------------------------------------------
@@ -715,35 +601,6 @@ prepend_node(Child, #ot_node_id{depth=Depth, x=X, y=Y, z=Z}) ->
     NewZ = (zval(Child) bsl (?DEFAULT_MAX_DEPTH -1)) + (Z bsr 1),
 
     #ot_node_id{depth=Depth+1, x=NewX, y=NewY, z=NewZ}.
-
-
-%% filter_full_area/1
-%% --------------------------------------------------------------------
-%% @doc seperate fully filled areas from the candates for further splitting.
-%%
-%% Will return a tuple containing a) a list of segments that do not fully fill a node yet,
-%% b) a list of nodes
-%%
-%%
-%% an area is fully filled if
-%%
-%% @end
--spec filter_full_area(SplitList :: [{ot_node_id(), ot_node_id()}]) ->
-          {ListList :: [{ot_node_id(), ot_node_id()}], Results :: [ot_node_id()]}.
-%% --------------------------------------------------------------------
-filter_full_area(SplitList) ->
-    filter_full_area(SplitList,[],[]).
-
-filter_full_area([], SplitOut, Results) -> {SplitOut, Results};
-
-filter_full_area([{P1,P2}|SplitListRest], SplitOut, Results) ->
-    {Prefix, Rest1, Rest2} = common_prefix(P1,P2),
-
-    %% check if P1 is the smallest and P2 the greatest possible corner.
-    case (is_all_zeroes(Rest1) and is_all_ones(Rest2)) of
-        true  -> filter_full_area(SplitListRest, SplitOut, Results ++ [Prefix]);
-        false -> filter_full_area(SplitListRest, [{P1,P2} | SplitOut], Results)
-    end.
 
 
 %% is_all_zeroes/1
@@ -928,7 +785,7 @@ to_node_list(Point) ->
 %%  equivalent operation is performed for ot_node_id objects.
 %%
 %% @end
--spec first_node(PosList :: #ot_node_id{}) -> ot_child_code() | no_return().
+-spec first_node(PosList :: ot_node_id()) -> ot_child_code() | no_return().
 %% --------------------------------------------------------------------
 first_node(#ot_node_id{depth=0}) -> throw(zero_depth);
 
@@ -941,6 +798,7 @@ first_node(Point) when is_record(Point, ot_node_id) ->
 %% rest_nodes/1
 %% --------------------------------------------------------------------
 %% @doc return all but the first element of a pos code
+%% TODO: is this almost the same as beyond?
 %% @end
 -spec rest_nodes(Position :: #ot_node_id{} ) -> #ot_node_id{} | no_return().
 %% --------------------------------------------------------------------
@@ -953,17 +811,6 @@ rest_nodes(#ot_node_id{depth=Depth, x=X, y=Y, z=Z}) ->
     NewZ = ((Z band ?QUPOT_REST_MASK) bsl 1),
     #ot_node_id{depth=Depth-1, x=NewX , y= NewY, z= NewZ}.
 
-%% xor_dim/3
-%% --------------------------------------------------------------------
-%% @doc return xor on the bit defined by the dimension
-%% @end
--spec xor_dim(Pos1 :: 0|1|2|3|4|5|6|7, Pos2 :: 0|1|2|3|4|5|6|7,
-              Dim :: x|y|z) -> 0|1.
-%% --------------------------------------------------------------------
-
-xor_dim(Pos1, Pos2, x) -> ((Pos1 band ?XMult) bxor (Pos2 band ?XMult)) bsr 2;
-xor_dim(Pos1, Pos2, y) -> ((Pos1 band ?YMult) bxor (Pos2 band ?YMult)) bsr 1;
-xor_dim(Pos1, Pos2, z) -> ((Pos1 band ?ZMult) bxor (Pos2 band ?ZMult)) bsr 0.
 
 %% default_max_depth/0
 %% --------------------------------------------------------------------
@@ -971,7 +818,7 @@ xor_dim(Pos1, Pos2, z) -> ((Pos1 band ?ZMult) bxor (Pos2 band ?ZMult)) bsr 0.
 %% @doc return the default max depth.
 %% this is required for building binary expressions.
 %% @end
--spec default_max_depth() -> pos_integer().
+-spec default_max_depth() -> non_neg_integer().
 default_max_depth() -> ?DEFAULT_MAX_DEPTH.
 
 
@@ -985,7 +832,7 @@ default_max_depth() -> ?DEFAULT_MAX_DEPTH.
 %% Function will throw badargs for any node that has no predecessor.
 %%
 %% @end
--spec previous(Node :: #ot_node_id{}) -> #ot_node_id{}.
+-spec previous(Node :: ot_node_id()) -> ot_node_id().
 previous(Node) ->
     try
         Leaf = leaf(Node),
@@ -998,43 +845,3 @@ previous(Node) ->
     end.
 
 
-%% sweep/1
-%% --------------------------------------------------------------------
-%% @doc collapse nodes in list that completely cover a node.
-%%
-%% PRE: the nodes are sorted according to the Morton order.
-%%
-%% the function will replace all nodes that constituate a complete node by this node.
-%%
-%% @private
-%% @end
--spec sweep(Nodes :: [#ot_node_id{}] ) -> [#ot_node_id{}].
-%% --------------------------------------------------------------------
-sweep([]) -> [];
-
-sweep(Nodes) ->
-
-    {LastQ, Ret} =
-        lists:foldl(fun(Elem, {Q, Out})->
-                            case queue:peek_r(Q) of
-                                %% special case: first element
-                                empty ->
-                                    {queue:in(Elem, Q), Out};
-                                {value, Last} ->
-                                    case previous(Elem) of
-                                        Last ->
-                                            case queue:len(Q) of
-                                                7 ->
-                                                    {queue:new(), Out ++ [inner(Elem)]};
-                                                _ ->
-                                                    {queue:in(Elem, Q), Out}
-                                            end;
-                                        _Val ->
-                                            %% place elem in new queue, put content of
-                                            %% of old queue at the end of out
-                                            {queue:in(Elem, queue:new()), Out ++ queue:to_list(Q)}
-                                    end
-                            end
-                    end, {queue:new(), []}, Nodes),
-
-Ret ++ queue:to_list(LastQ).
