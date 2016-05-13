@@ -19,7 +19,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("quperl_octree.hrl").
 
-
+-export([test_new_box_to_volume/0]).
 %%
 %% Fixtures
 %%
@@ -73,12 +73,12 @@ unit_test_() ->
                     , ?_test(test_beyond())
                     , ?_test(test_get_code_at())
                     , ?_test(test_get_depth())
-                    , ?_test(test_new_box_to_volume())
-%%                     , ?_test(test_handle_node_parent())
+                    , ?_test(test_handle_node_parent())
                     , ?_test(test_make_sub_node_points())
                     , ?_test(test_right_wall_calc())
                     , ?_test(test_left_wall_calc())
                     , ?_test(test_bitlist())
+                    , ?_test(test_new_box_to_volume())
                     ]
       end }.
 
@@ -135,14 +135,22 @@ test_new_box_to_volume() ->
 %%                   {0.499, 0.499, 0.499},
 %%                   [quperl_octree:to_node_id({0.499, 0.499, 0.499})]}
 
-                {[0,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+%%                 {[0,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+%%                    7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+%%                    7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
+%%                   [7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+%%                    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+%%                    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+%%                   []}
+
+                 {[0,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
                    7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
-                   7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
+                   7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
                   [7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
                    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-                   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
                   []}
-               
+
 %%                , {{0.499, 0.499, 0.499},
 %%                   {0.501, 0.501, 0.501},
 %%                   []}
@@ -433,9 +441,12 @@ test_beyond() ->
 
 test_for_each_child() ->
 
-    ?assertEqual([[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[1,7]],
+    ?assertEqual([ [7,1,0],[7,1,1],[7,1,2],[7,1,3],
+                   [7,1,4],[7,1,5],[7,1,6],[7,1,7]],
                  as_node_list(quperl_octree:for_each_child(quperl_octree:to_node_id([1]),
-                                                           fun(C) -> [C] end))),
+                                                           fun(C, E) ->
+                                                                   [quperl_octree:prepend_node(E,C)]
+                                                           end, 7))),
     ok.
 
 

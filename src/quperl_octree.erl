@@ -49,10 +49,10 @@
          append_node/2, xval/1, yval/1, zval/1, is_all_ones/1,
          is_all_zeroes/1, bit_count/1, default_max_depth/0, split/4,
          xor_dim/3, sweep/1, previous/1, new_box_to_volume/2,
-         for_each_child/2, is_ancestor_of/2, beyond/2, get_code_at/2,
+         for_each_child/3, is_ancestor_of/2, beyond/2, get_code_at/2,
          left_wall/2, right_wall/2, left_wall/3, right_wall/3,
          handle_node_parent/8, make_sub_node_points/8,
-         left_wall_calc/2, right_wall_calc/3
+         left_wall_calc/2, right_wall_calc/3, prepend_node/2
         ]).
 -endif.
 
@@ -242,14 +242,16 @@ get_code_at(Depth, Node) ->
      ((Node#ot_node_id.z band Mask) bsr Shift) * ?ZMult).
 
 
-%% for_each_child/2
+%% for_each_child/3
 %% --------------------------------------------------------------------
 %% @doc execute function on each child of a node.
 %% @end
 %% --------------------------------------------------------------------
--spec for_each_child(N :: #ot_node_id{}, F :: fun((Child :: #ot_node_id{}) -> term()) ) -> [term()].
-for_each_child(Node, Fun) ->
-    lists:foldl(fun(L, Acc) -> Acc ++ Fun(append_node(Node,L)) end, [], lists:seq(0, 7)).
+-spec for_each_child(N :: #ot_node_id{}, 
+                     F :: fun((Child :: #ot_node_id{}, ExtraIn :: term()) -> term()),
+                     Extra :: term()) -> [term()].
+for_each_child(Node, Fun, Extra) ->
+    lists:foldl(fun(L, Acc) -> Acc ++ Fun(append_node(Node,L), Extra) end, [], lists:seq(0, 7)).
 
 
 %% is_ancestor_of/2
@@ -294,9 +296,9 @@ new_box_to_volume(P1, P2) when P1#ot_node_id.depth == P2#ot_node_id.depth ->
 new_box_to_volume(_P, Point, Point) -> [Point];
 
 new_box_to_volume(Parent, Point1, Point2) ->
+    for_each_child(Parent, fun box_to_vol_per_node/2, {Point1, Point2}).
 
-    for_each_child(Parent,
-                   fun(Node) ->
+box_to_vol_per_node(Node, {Point1, Point2}) ->
                       Parent1 = is_ancestor_of(Node, Point1),
                       Parent2 = is_ancestor_of(Node, Point2),
 
@@ -308,9 +310,7 @@ new_box_to_volume(Parent, Point1, Point2) ->
 %%                                 [Parent1, Parent2, V1,V2, Dxyz, get_depth(Parent)]),
                       Dx = xval(Dxyz), Dy = yval(Dxyz), Dz = zval(Dxyz),
 
-                      handle_node_parent(Parent1, Parent2, Dx,Dy,Dz, Node, Point1, Point2)
-                   end).
-
+                      handle_node_parent(Parent1, Parent2, Dx,Dy,Dz, Node, Point1, Point2).
 
 %% handle_node_parent/8
 %% --------------------------------------------------------------------
@@ -396,17 +396,17 @@ handle_node_parent(In1, In2,
     {NX1, NX2} = make_sub_node_points(In1, In2,
                                       Dx,
                                       is_upper(get_code_at(D, Node), x),
-                                      D+1, x,
+                                      D, x,
                                       Point1, Point2),
     {NY1, NY2} = make_sub_node_points(In1, In2,
                                       Dy,
                                       is_upper(get_code_at(D, Node), y),
-                                      D+1, y,
+                                      D, y,
                                       Point1, Point2),
     {NZ1, NZ2} = make_sub_node_points(In1, In2,
                                       Dz,
                                       is_upper(get_code_at(D, Node), z),
-                                      D+1, z,
+                                      D, z,
                                       Point1, Point2),
 
     NewPoint1 = #ot_node_id{depth = Point1#ot_node_id.depth,
