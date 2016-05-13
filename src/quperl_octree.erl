@@ -296,7 +296,20 @@ new_box_to_volume(P1, P2) when P1#ot_node_id.depth == P2#ot_node_id.depth ->
 new_box_to_volume(_P, Point, Point) -> [Point];
 
 new_box_to_volume(Parent, Point1, Point2) ->
-    for_each_child(Parent, fun box_to_vol_per_node/2, {Point1, Point2}).
+    Beyond1 = beyond(Parent, Point1),
+    Beyond2 = beyond(Parent, Point2),
+    
+    ?debugVal(to_node_list(Parent)),?debugVal(to_node_list(Beyond1)),?debugVal(to_node_list(Beyond2)),
+    case is_all_zeroes(Beyond1) and is_all_ones(Beyond2) of
+        %% the points encompass all of the node..
+        true ->
+            ?debugMsg("return node"),
+            [Parent];
+        %% the actual area is within the node
+        false ->
+            ?debugFmt("... recurse into node Depth:~p",[get_depth(Parent)]),
+            for_each_child(Parent, fun box_to_vol_per_node/2, {Point1, Point2})
+end.
 
 box_to_vol_per_node(Node, {Point1, Point2}) ->
                       Parent1 = is_ancestor_of(Node, Point1),
@@ -363,20 +376,7 @@ box_to_vol_per_node(Node, {Point1, Point2}) ->
 
 %% both points in the node....
 handle_node_parent(true, true, _Dx, _Dy, _Dz, Node, Point1, Point2) ->
-    Beyond1 = beyond(Node, Point1),
-    Beyond2 = beyond(Node, Point2),
-    
-    ?debugVal(to_node_list(Node)),?debugVal(to_node_list(Beyond1)),?debugVal(to_node_list(Beyond2)),
-    case is_all_zeroes(Beyond1) and is_all_ones(Beyond2) of
-        %% the points encompass all of the node..
-        true ->
-            ?debugMsg("return node"),
-                [Node];
-        %% the actual area is within the node
-        false ->
-            ?debugFmt("... recurse into node Depth:~p",[get_depth(Node)]),
-            new_box_to_volume(Node, Point1, Point2)
-    end;
+    new_box_to_volume(Node, Point1, Point2);
 
 %% volume is lacking delta in at least one dimension -> will not create volume, but point, line or area
 handle_node_parent(false, false, Dx, Dy, Dz, _N, _P1, _P2) when (Dx + Dy + Dz) < 3 -> [];
