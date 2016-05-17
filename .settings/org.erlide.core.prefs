@@ -1,4 +1,4 @@
-backend_version=17.0
+backend_version=18.0
 compiler/compressed=false
 compiler/debug_info=true
 compiler/encrypt_debug_info=false

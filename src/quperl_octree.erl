@@ -35,6 +35,12 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
+
+-opaque node_id() :: ot_node_id().
+-opaque volume() :: ot_volume().
+
+-export_type([node_id/0, volume/0]).
+
 -export([new_volume/0, new_volume/1, new_volume/2,
          to_node_id/1, to_node_id/2,
          to_node_list/1, inner/1, leaf/1,
