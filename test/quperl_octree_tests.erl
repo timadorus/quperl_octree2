@@ -32,7 +32,8 @@ api_test_() ->
       fun takedown_env/1,
       fun(Args) -> [ ?_test(test_new_volume0(Args))
                    , ?_test(test_new_volume1(Args))
-%%                    , ?_test(test_new_volume2(Args))
+                   , ?_test(test_is_node_id(Args))
+                   , ?_test(test_children(Args))
                    ]
       end }.
 
@@ -99,6 +100,26 @@ test_new_volume1(_Args) ->
 
 ok.
 
+
+test_is_node_id(_Args) ->
+    ?assertEqual(false, quperl_octree:is_node_id(1)),
+
+    ?assertEqual(true, quperl_octree:is_node_id(#ot_node_id{})),
+
+    ?assertEqual(true, quperl_octree:is_node_id(quperl_octree:to_node_id([]))),
+
+    ?assertEqual(false, quperl_octree:is_node_id(quperl_octree:new_volume())),
+    ok.
+
+
+test_children(_Args) ->
+    Expected = [[1,2,0], [1,2,1], [1,2,2], [1,2,3], [1,2,4], [1,2,5], [1,2,6], [1,2,7]],
+
+    Result = as_node_list(quperl_octree:children(quperl_octree:to_node_id([1,2]))),
+
+    ?assertEqual(Expected, Result),
+
+    ok.
 
 
 test_new_box_to_volume() ->

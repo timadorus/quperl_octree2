@@ -44,7 +44,8 @@
 -export([new_volume/0, new_volume/1, new_volume/2,
          to_node_id/1, to_node_id/2,
          to_node_list/1, inner/1, leaf/1,
-         is_equal/2, get_depth/1, get_value/2]).
+         is_equal/2, get_depth/1, get_value/2,
+         is_node_id/1, children/1]).
 
 
 -ifdef(TEST).
@@ -111,6 +112,17 @@ new_volume(P1 = {_X1, _Y1, _Z1}, P2 = {_X2, _Y2, _Z2}) ->
     new_volume(to_node_id(P1, ?DEFAULT_MAX_DEPTH),
                to_node_id(P2, ?DEFAULT_MAX_DEPTH)).
 
+%% is_node_id/1
+%% --------------------------------------------------------------------
+%% @doc test for node_id.
+%%
+%% return true if the argument is a node_id, false if otherwise.
+%% @end
+-spec is_node_id(term()) -> boolean().
+%% --------------------------------------------------------------------
+is_node_id(Arg) when is_record(Arg, ot_node_id) -> true;
+
+is_node_id(_) -> false.
 
 %% to_node_id/1
 %% --------------------------------------------------------------------
@@ -151,8 +163,6 @@ to_node_id({X,Y,Z}, Depth) ->
 
 to_node_id(NodeList, Depth) when is_list(NodeList) ->
     to_node_id(NodeList, #ot_node_id{}, Depth).
-
-
 
 
 %% leaf/1
@@ -230,6 +240,17 @@ get_depth(Node) -> Node#ot_node_id.depth.
 get_value(Node, x) -> Node#ot_node_id.x;
 get_value(Node, y) -> Node#ot_node_id.y;
 get_value(Node, z) -> Node#ot_node_id.z.
+
+
+%% children/1
+%% --------------------------------------------------------------------
+%% @doc return the list of children of a node
+%% @end
+%% --------------------------------------------------------------------
+-spec children(Node :: quperl_octree:node_id()) -> [quperl_octree:node_id()].
+children(Node) ->
+    for_each_child(Node, fun(Child, _Extra) -> [Child] end, []).
+
 
 %% ====================================================================
 %% Internal functions
