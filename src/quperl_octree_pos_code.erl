@@ -76,7 +76,7 @@ to_pos_code(NId) -> to_pos_code(NId, ?DEFAULT_MAX_DEPTH).
 -spec to_pos_code(#ot_node_id{}, MaxDepth :: pos_integer()) -> pos_code().
 %% --------------------------------------------------------------------
 to_pos_code(NId, MaxDepth) ->
-    Spec = quperl_octree:to_node_list(NId),
+    Spec = quperl_octree_node_id:to_node_list(NId),
 
     {Depth, PosCode} = lists:foldl(fun add_pos_code/2, {0,<<>>}, Spec),
 

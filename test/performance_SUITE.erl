@@ -49,7 +49,7 @@ many_points(_Config) ->
 
 
 to_pos_code_param_wrap(Pos) ->
-      quperl_octree_pos_code:to_pos_code(quperl_octree:to_node_id(Pos)).
+      quperl_octree_pos_code:to_pos_code(quperl_octree_node_id:to_node_id(Pos)).
 
 
 many_volumes(_Config) ->

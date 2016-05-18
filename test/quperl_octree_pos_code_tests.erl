@@ -244,6 +244,6 @@ test_cases() -> [{ok,
                 ].
 
 min_super_node(P1, P2, Depth) ->
-    {Pre, _R1, _R2} = quperl_octree:common_prefix(quperl_octree:to_node_id(P1, Depth),
-                                                  quperl_octree:to_node_id(P2, Depth)),
+    {Pre, _R1, _R2} = quperl_octree_node_id:common_prefix(quperl_octree_node_id:to_node_id(P1, Depth),
+                                                  quperl_octree_node_id:to_node_id(P2, Depth)),
     Pre.
