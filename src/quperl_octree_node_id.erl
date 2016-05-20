@@ -205,7 +205,7 @@ to_node_id(Depth, X, Y, Z) -> #ot_node_id{depth=Depth, x=X, y=Y, z=Z}.
 %% @doc execute function on each child of a node.
 %% @end
 %% --------------------------------------------------------------------
--spec for_each_child(N :: #ot_node_id{},
+-spec for_each_child(N :: quperl_octree:node_id(),
                      F :: fun((Child :: #ot_node_id{}, ExtraIn :: term()) -> term()),
                      Extra :: term()) -> [term()].
 for_each_child(Node, Fun, Extra) ->

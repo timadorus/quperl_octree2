@@ -61,7 +61,7 @@ is_pos_code(_Other) -> false.
 
 %% to_pos_code/1
 %% --------------------------------------------------------------------
-%% @doc create pos code from node specification.
+%% @doc create pos code from node id.
 %%
 %% @end
 -spec to_pos_code(#ot_node_id{}) -> pos_code().
@@ -70,7 +70,7 @@ to_pos_code(NId) -> to_pos_code(NId, ?DEFAULT_MAX_DEPTH).
 
 %% to_pos_code/2
 %% --------------------------------------------------------------------
-%% @doc create pos code from node specification.
+%% @doc create pos code from node id and max depth.
 %%
 %% @end
 -spec to_pos_code(#ot_node_id{}, MaxDepth :: pos_integer()) -> pos_code().
