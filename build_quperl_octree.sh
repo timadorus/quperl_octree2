@@ -54,7 +54,7 @@ function check_agent {
 function flight_checks {
     # do we have a loaded agent running?
     check_agent
-    
+
     # check that more than one CPU is present, otherwise race conditions have it too easy to slip by.
     cpu_count=`cat /proc/cpuinfo | grep '^processor' | wc -l`
     if [ $cpu_count -lt 2 ]
@@ -65,6 +65,35 @@ function flight_checks {
      fi
 }
 
+#########################################
+#          PULL CHANGES IN SOURCE       #
+#########################################
+function pull_source {
+
+    for dir in src test c_src steps include features
+     do
+      # remove existing project source files
+      rm -rf "${WORKDIR}/${PROJECT}_local/${dir}"
+
+      # copy src and test files to work dir
+      if [ -d "${BASEDIR}/${dir}" ]
+        then
+          cp -a "${BASEDIR}/${dir}" "${WORKDIR}/${PROJECT}_local/"
+        else
+          echo "Warning: directory ${BASEDIR}/${dir} not found in project. Directory is listed as standard project dir."
+        fi
+     done
+
+    for file in rebar.config elvis.config dialyzer.ignore-warning
+      do
+        if [ -f "${BASEDIR}/${file}" ]
+          then
+            cp -a "${BASEDIR}/${file}" "${WORKDIR}/${PROJECT}_local/"
+          else
+            echo "Warning: file ${BASEDIR}/${file} not found in project. File is listed as standard project file."
+          fi
+      done
+}
 
 #########################################
 #            COMMON TEST                #
@@ -82,26 +111,53 @@ rebar3 ct
 }
 
 #########################################
+#      EDOC - build documentation       #
+#########################################
+function edoc {
+    pushd "${WORKDIR}/${PROJECT}_local"
+
+    pull_source
+
+    rebar3 edoc
+}
+
+#########################################
+#      LINT - check code style          #
+#########################################
+function lint {
+    pushd "${WORKDIR}/${PROJECT}_local"
+
+    pull_source
+
+    rebar3 lint
+}
+
+#########################################
 #      UPDATE CODE and REBUILD          #
 #########################################
 function update {
-    
+
     pushd "${WORKDIR}/${PROJECT}_local"
 
-    for dir in src test include
-     do
-      # remove existing project source files
-      rm -rf "${dir}"
-    
-      # copy src and test files to work dir
-      cp -a "${BASEDIR}/${dir}" "${WORKDIR}/${PROJECT}_local/"
-     done
+    pull_source
 
     rebar3 eunit
     rebar3 cover
     rebar3 as test dialyzer
-    
+
     do_ct
+}
+
+#########################################
+#    Compile and Test NIF Object Code   #
+#########################################
+function compile_c {
+
+    pushd "${WORKDIR}/${PROJECT}_local"
+
+    pull_source
+
+    rebar3 compile
 }
 
 #########################################
@@ -113,36 +169,53 @@ function build {
      then
       rm -rf "${WORKDIR}/${PROJECT}_local"
      fi
-    
+
     cp -a "${BASEDIR}" "${WORKDIR}/${PROJECT}_local"
-    
+
     # ensure that nginx can read the build data
     chmod a+rx "${WORKDIR}/${PROJECT}_local"
-    
+
     pushd "${WORKDIR}/${PROJECT}_local"
-    
+
     # remove eclipse fluff
     rm -f ebin/*.beam "ebin/${PROJECT}.app"
-    
+
     rebar3 deps
     rebar3 eunit
+    rebar3 lint
     rebar3 cover
     rebar3 as test dialyzer
-    
+
+    do_ct
+
+    rebar3 edoc
     rebar3 as prod compile
     rebar3 as prod release tar
-    
-    do_ct
-    
+
 }
 
 
 flight_checks
 
 case $COMMAND in
+    edoc )
+        echo "...creating documentation...."
+        edoc
+        exit 0
+    ;;
+    lint )
+        echo "...linting...."
+        lint
+        exit 0
+    ;;
     build )
         echo "...building...."
         build
+        exit 0
+    ;;
+    compile-c )
+        echo "...compiling c source...."
+        compile_c
         exit 0
     ;;
     update )
@@ -151,7 +224,7 @@ case $COMMAND in
         exit 0
     ;;
     * )
-        echo "use command: build | update"
+        echo "use command: build | update | edoc | lint | compile-c"
         exit 1
     ;;
 esac
