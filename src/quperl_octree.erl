@@ -41,8 +41,9 @@
 
 -export_type([node_id/0, volume/0]).
 
--export([new_volume/0, new_volume/1, new_volume/2
-         ]).
+-export([ new_volume/0, new_volume/1, new_volume/2
+%%         , diff/2
+        ]).
 
 
 -ifdef(TEST).
@@ -116,7 +117,20 @@ new_volume(P1 = {_X1, _Y1, _Z1}, P2 = {_X2, _Y2, _Z2}) ->
 
 
 
-
+%% cannot test diff, as it will take too long to compute and the test will
+%% time out. Will need a bounded make_box first
+%%
+%% %% diff/2
+%% %% --------------------------------------------------------------------
+%% %% @doc get difference between two volumes
+%% %% Function will return a tuple containing a list of spaces that will
+%% %% have to be removed and a list containing the spaces that will have 
+%% %% to be added to transform one volume into the other.
+%% -spec diff(FromVol :: quperl_octree:volume(), ToVol :: quperl_octree:volume()) ->
+%%           {RemovedSpaces :: SpaceList, AddedSpaces :: SpaceList} when
+%%           SpaceList :: [ ot_node_id() | ot_morton_interval() | ot_morton_node()].
+%% %% --------------------------------------------------------------------
+%% diff(_FromVol, _ToVol) -> {[],[]}.
 
 %% ====================================================================
 %% Internal functions
@@ -247,7 +261,7 @@ box_to_vol_per_node(Node, {Point1, Point2}) ->
 %% @end
 %% --------------------------------------------------------------------
 -spec handle_node_parent(P1InNode, P2InNode, Dx,Dy,Dz, Node, P1, P2) -> [#ot_node_id{}] when
-          P1InNode  :: boolean(),
+    P1InNode  :: boolean(),
     P2InNode  :: boolean(),
     Dx  :: 0|1,
     Dy  :: 0|1,

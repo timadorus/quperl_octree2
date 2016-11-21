@@ -35,6 +35,17 @@ api_test_() ->
       fun takedown_env/1,
       fun(Args) -> [ ?_test(test_new_volume0(Args))
                    , ?_test(test_new_volume1(Args))
+                   , ?_test(test_new_volume2(Args))
+                   , ?_test(test_diff(Args))
+                   ]
+      end }.
+
+util_test_() ->
+    { "verify util test functions",
+      setup,
+      fun setup_env/0,
+      fun takedown_env/1,
+      fun(Args) -> [ ?_test(test_prefix_long_first(Args))
                    ]
       end }.
 
@@ -87,6 +98,34 @@ test_new_volume1(_Args) ->
 ok.
 
 
+test_new_volume2(_Args) ->
+    _Vol1 = quperl_octree:new_volume({0.001,0.001,0.001},
+                                    {0.002,0.002,0.002}),
+
+    ok.
+
+
+test_diff(_Args) -> 
+%%    
+%% cannot test diff, as it will take too long to compute and the test will
+%% time out. Will need a bounded make_box first
+%%
+%%     Vol1 = quperl_octree:new_volume({0.001,0.001,0.001},
+%%                                     {0.002,0.002,0.002}),
+%% 
+%%     %% trivial cases
+%%     ?assertEqual({[],[]}, 
+%%                  quperl_octree:diff(quperl_octree:new_volume(), 
+%%                                     quperl_octree:new_volume())),
+%%     
+%%     Vol1 = quperl_octree:new_volume({0.001,0.001,0.001},
+%%                                     {0.002,0.002,0.002}),
+%% 
+%%     ?assertEqual({[],[]}, 
+%%                  quperl_octree:diff(Vol1, Vol1)),
+    ok.
+
+
 test_new_box_to_volume() ->
 
     TestVals = [
@@ -103,41 +142,73 @@ test_new_box_to_volume() ->
                    7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
                   [[]]} %% 0-length node, as this is the whole cube
 
-%%                , {[0,0,0],
-%%                   [7,7,6],
-%%                   [[]]}
+               , {[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7],
+                  [[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]]} 
 
-%%                 {[0,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
-%%                    7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
-%%                    7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
-%%                   [7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-%%                    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-%%                    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-%%                   []}
-
-%%                , {[0,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
-%%                    7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
-%%                    7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
-%%                   [7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-%%                    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-%%                    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-%%                   []}
-
-%%                , {{0.499, 0.499, 0.499},
-%%                   {0.501, 0.501, 0.501},
-%%                   []}
+               , {[0,0,0],
+                  [7,7,6],
+                  [[0],
+                   [1,0], [1,2], [1,4], [1,6], 
+                   [2],
+                   [3,0], [3,2], [3,4], [3,6], 
+                   [4],
+                   [5,0], [5,2], [5,4], [5,6], 
+                   [6],
+                   [7,0], [7,2], [7,4], [7,6]]}
                ],
 
 
     lists:foreach(fun({P1, P2, Expected}) ->
-                          Result = quperl_octree:new_box_to_volume(to_node_id(P1),
-                                                                   to_node_id(P2)),
+                          {Time, Result} = timer:tc(quperl_octree, new_box_to_volume,
+                                            [to_node_id(P1), to_node_id(P2)]),
+                          io:format(standard_error, "Elapsed: ~.4f s ~n", [(Time/1000000)]),
                           PrepResult = as_node_list(Result),
-%%                           ?debugVal(PrepResult),
-%%                           ?debugVal(length(Result)),
+                          ?debugFmt("PrepResult: ~p~n", [PrepResult]),
+                          ?debugVal(length(Result)),
                           ?assertEqual(Expected, PrepResult)
                   end, TestVals),
     ok.
+
+
+
+map_prefix_long_first(Fun, Acc, List) -> 
+    map_inv_suffix_long_first(Fun, Acc, lists:reverse(List)).
+
+
+map_inv_suffix_long_first(Fun, Acc, []) -> lists:reverse(Acc);
+
+map_inv_suffix_long_first(Fun, Acc, List= [_|Tail]) ->
+    NewAcc = [Fun(lists:reverse(List))| Acc],
+    map_inv_suffix_long_first(Fun, NewAcc, Tail).
+    
+map_identity(List) -> List.
+
+test_prefix_long_first(_Args) ->
+    InList = [1,2,3,4],
+    OutList = [[1,2,3,4],[1,2,3],[1,2],[1]],
+    
+    ?assertEqual(OutList, map_prefix_long_first(fun map_identity/1, [], InList)),
+    
+    ok.
+
+map_ot_volume({P1, P2}) ->
+    {Time, Result} = timer:tc(quperl_octree, new_box_to_volume,
+                              [to_node_id(P1), to_node_id(P2)]),
+    io:format(standard_error, "Elapsed: ~.4f s ~n", [(Time/1000000)]),
+    PrepResult = as_node_list(Result),
+    ?debugFmt("PrepResult: ~p~n", [PrepResult]),
+    ?debugVal(length(Result)).
+
+test_new_box_to_volume_perf() ->
+
+ok.
 
 
 %%
