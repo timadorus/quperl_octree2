@@ -19,8 +19,7 @@
 %% border_align(N,P1,P2) will return either P1 or P2 if they are within N and
 %%   replace the other point with a new point that is positioned as far as
 %%   possible but still in N:
-%%       min_align(N, P) will return either P or P' that is as close to P and still be within N
-%%       min_align(N, P) will return either P or P' that is as close to P and still be within N
+%%       wall_align(N, P) will return either P or P' that is as close to P and still be within N
 %%
 
 
@@ -56,12 +55,9 @@ box_to_volume(P1, P2) when P1#ot_node_id.depth == P2#ot_node_id.depth ->
 
 
 init() ->
-    ok = erlang:load_nif("./complex6_nif", 0).
+    ok = erlang:load_nif("./quperl_octree_nif", 0).
 
 
-
-init() ->
-    ok = erlang:load_nif("./complex6_nif", 0).
 
 foo(_X) ->
     exit(nif_library_not_loaded).
