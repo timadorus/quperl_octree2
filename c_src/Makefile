@@ -3,15 +3,13 @@
 CURDIR := $(shell pwd)
 BASEDIR := $(abspath $(CURDIR)/..)
 
-PROJECT ?= $(notdir $(BASEDIR))
-PROJECT := $(strip $(PROJECT))
 
 ERTS_INCLUDE_DIR ?= $(shell erl -noshell -s init stop -eval "io:format(\"~s/erts-~s/include/\", [code:root_dir(), erlang:system_info(version)]).")
 ERL_INTERFACE_INCLUDE_DIR ?= $(shell erl -noshell -s init stop -eval "io:format(\"~s\", [code:lib_dir(erl_interface, include)]).")
 ERL_INTERFACE_LIB_DIR ?= $(shell erl -noshell -s init stop -eval "io:format(\"~s\", [code:lib_dir(erl_interface, lib)]).")
 
 C_SRC_DIR = $(CURDIR)
-C_SRC_OUTPUT ?= $(CURDIR)/../priv/$(PROJECT).so
+C_SRC_OUTPUT ?= $(CURDIR)/../priv/quperl_octree.so
 
 # System type and C compiler/flags.
 
@@ -48,8 +46,12 @@ cpp_verbose = $(cpp_verbose_$(V))
 link_verbose_0 = @echo " LD    " $(@F);
 link_verbose = $(link_verbose_$(V))
 
-SOURCES := $(shell find $(C_SRC_DIR) -type f \( -name "*.c" -o -name "*.C" -o -name "*.cc" -o -name "*.cpp" \))
+SOURCES := $(shell find $(C_SRC_DIR) -type f \( -name "*.c" -o -name "*.C" -o -name "*.cc" -o -name "*.cpp" \) \
+              -a \( -not \( -name "CuTest.c" -o -name "_test.c" \) \))
 OBJECTS = $(addsuffix .o, $(basename $(SOURCES)))
+
+TEST_SOURCE := $(shell find $(C_SRC_DIR) -type f \( -name "CuTest.c" -o -name "*_test.c" \) )
+TEST_OBJECTS = $(addsuffix .o, $(basename $(TEST_SOURCES)))
 
 COMPILE_C = $(c_verbose) $(CC) $(CFLAGS) $(CPPFLAGS) -c
 COMPILE_CPP = $(cpp_verbose) $(CXX) $(CXXFLAGS) $(CPPFLAGS) -c
@@ -73,13 +75,15 @@ $(C_SRC_OUTPUT): $(OBJECTS)
 clean:
 	@rm -f $(C_SRC_OUTPUT) $(OBJECTS)
 
-test: AllTests
-	./AllTests
 
-AllTest: AllTests.o $(OBJECTS)
-	$(link_verbose) $(CC) $(OBJECTS) $(LDLIBS) -o AllTests
+AllTests: AllTests.o $(OBJECTS) $(TEST_OBJECTS)
+	$(link_verbose) $(CC) $(OBJECTS) $(TEST_OBJECTS) AllTests.o $(LDLIBS) -o AllTests
 
 AllTests.c: $(SOURCES)
 	$(shell ./make-tests.sh >./AllTests.c)
+
+run-tests: AllTests
+	$(shell ./AllTests)
+
 
 

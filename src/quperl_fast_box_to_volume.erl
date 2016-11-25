@@ -30,6 +30,11 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("quperl_octree.hrl").
 
+-ifdef(TEST).
+%% export the private functions for testing only.
+-export([wall_align/2
+         ]).
+-endif.
 
 %% ====================================================================
 %% API functions
@@ -43,7 +48,9 @@
 %% --------------------------------------------------------------------
 -spec box_to_volume(P1 :: ot_node_id(), P2 :: ot_node_id()) -> [ot_node_id()].
 box_to_volume(P1, P2) when P1#ot_node_id.depth == P2#ot_node_id.depth ->
-    new_box_to_volume(#ot_node_id{}, P1, P2).
+    [P1].
+%% box_to_volume(P1, P2) when P1#ot_node_id.depth == P2#ot_node_id.depth ->
+%%     new_box_to_volume(#ot_node_id{}, P1, P2).
 
 
 %% ====================================================================
@@ -51,15 +58,14 @@ box_to_volume(P1, P2) when P1#ot_node_id.depth == P2#ot_node_id.depth ->
 %% ====================================================================
 
 
--spec border_align(Node :: ot_node_id(), P1, P2  :: ot_node_id()) ->
+%-spec border_align(Node :: ot_node_id(), P1, P2  :: ot_node_id()) ->
 
 
 init() ->
-    ok = erlang:load_nif("./quperl_octree_nif", 0).
+    ok = erlang:load_nif("./priv/quperl_octree", 0).
 
-
-
-foo(_X) ->
+wall_align(_Node, _Point) ->
     exit(nif_library_not_loaded).
-bar(_Y) ->
-    exit(nif_library_not_loaded).
+
+
+
