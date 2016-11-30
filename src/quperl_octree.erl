@@ -124,7 +124,7 @@ new_volume(P1 = {_X1, _Y1, _Z1}, P2 = {_X2, _Y2, _Z2}) ->
 %% %% --------------------------------------------------------------------
 %% %% @doc get difference between two volumes
 %% %% Function will return a tuple containing a list of spaces that will
-%% %% have to be removed and a list containing the spaces that will have 
+%% %% have to be removed and a list containing the spaces that will have
 %% %% to be added to transform one volume into the other.
 %% -spec diff(FromVol :: quperl_octree:volume(), ToVol :: quperl_octree:volume()) ->
 %%           {RemovedSpaces :: SpaceList, AddedSpaces :: SpaceList} when
@@ -210,16 +210,16 @@ new_box_to_volume(Parent, Point1, Point2) ->
 end.
 
 box_to_vol_per_node(Node, {Point1, Point2}) ->
-                      Parent1 = is_ancestor_of(Node, Point1),
-                      Parent2 = is_ancestor_of(Node, Point2),
+    Parent1 = is_ancestor_of(Node, Point1),
+    Parent2 = is_ancestor_of(Node, Point2),
 
-                      V1 = get_code_at(get_depth(Node), Point1),
-                      V2 = get_code_at(get_depth(Node), Point2),
+    V1 = get_code_at(get_depth(Node), Point1),
+    V2 = get_code_at(get_depth(Node), Point2),
 
-                      Dxyz = V1 bxor V2,
-                      Dx = xval(Dxyz), Dy = yval(Dxyz), Dz = zval(Dxyz),
+    Dxyz = V1 bxor V2,
+    Dx = xval(Dxyz), Dy = yval(Dxyz), Dz = zval(Dxyz),
 
-                      handle_node_parent(Parent1, Parent2, Dx,Dy,Dz, Node, Point1, Point2).
+    handle_node_parent(Parent1, Parent2, Dx,Dy,Dz, Node, Point1, Point2).
 
 %% handle_node_parent/8
 %% --------------------------------------------------------------------
