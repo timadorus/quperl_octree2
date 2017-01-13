@@ -1,7 +1,6 @@
 
 #ifndef QUPERL_OCTREE_H
-#defined QUPERL_OCTREE_H
-
+#define QUPERL_OCTREE_H
 
 #define true 1
 #define false 0
@@ -13,11 +12,11 @@
 
 typedef struct
 {
-  unsigned int depth,
+  unsigned int depth;
   ErlNifUInt64 x, y, z;
 } t_node_id;
 
 
-ErlNifUInt64 wall_align(ErlNifUInt64 node_val, int node_depth, ErlNifUInt64depth point_val);
+ErlNifUInt64 wall_align(ErlNifUInt64 node_val, int node_depth, ErlNifUInt64 point_val);
 
-#endif QUPERL_OCTREE_H
+#endif /* QUPERL_OCTREE_H */

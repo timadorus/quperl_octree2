@@ -47,7 +47,7 @@ link_verbose_0 = @echo " LD    " $(@F);
 link_verbose = $(link_verbose_$(V))
 
 SOURCES := $(shell find $(C_SRC_DIR) -type f \( -name "*.c" -o -name "*.C" -o -name "*.cc" -o -name "*.cpp" \) \
-              -a \( -not \( -name "CuTest.c" -o -name "_test.c" \) \))
+              -a \( -not \( -name "CuTest.c" -o -name "*_test.c" \) \))
 OBJECTS = $(addsuffix .o, $(basename $(SOURCES)))
 
 TEST_SOURCE := $(shell find $(C_SRC_DIR) -type f \( -name "CuTest.c" -o -name "*_test.c" \) )

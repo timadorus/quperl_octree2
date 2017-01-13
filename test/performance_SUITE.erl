@@ -9,12 +9,16 @@
 
 suite() -> [].
 groups() -> [ {test_octree, [sequence, {repeat, 2}],
-              [many_points, many_volumes]}
+                [many_points, many_volumes]}
+            , {performance, [sequence],
+                [many_volumes_per_size]}
             , {profile, [sequence],
-              [profile_new_volume]}].
+                [profile_new_volume]}].
 
 all() -> [ {group, test_octree}
-         , {group, profile}].
+         , {group, performance}
+         , {group, profile}
+         ].
 
 init_per_suite(Config) ->
     Config.
@@ -55,8 +59,19 @@ to_pos_code_param_wrap(Pos) ->
 many_volumes(_Config) ->
     teu_perf_measure:test_avg_func("volume to node list",
                                    ?MODULE, new_volume_param_wrap, [],
-                                   [], fun gen_volume/1, 1000),
+                                   10, fun gen_volume/1, 1000),
     ok.
+
+many_volumes_by_size(_Config) ->
+    [ X || X <- lists:seq(0, 10),
+     test_for_size(X) ],
+
+    ok.
+
+test_for_size(Size) ->
+    teu_perf_measure:test_avg_func("volume to node list",
+                                   ?MODULE, new_volume_param_wrap, [],
+                                   Size, fun gen_volume/1, 1000).
 
 
 %% TODO: convert all nodes in volume
@@ -92,7 +107,7 @@ gen_point(_OldPoint) ->
 
 do_multiple_volumes() ->
     lists:foreach(fun(_) ->
-                          {P1, P2} = gen_volume(ignore),
+                          {P1, P2} = gen_volume(10),
                           quperl_octree:new_volume(P1, P2)
                   end, lists:seq(1, 100)),
     ok.

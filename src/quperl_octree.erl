@@ -207,7 +207,7 @@ new_box_to_volume(Parent, Point1, Point2) ->
         %% the actual area is within the node
         false ->
             for_each_child(Parent, fun box_to_vol_per_node/2, {Point1, Point2})
-end.
+    end.
 
 box_to_vol_per_node(Node, {Point1, Point2}) ->
     Parent1 = is_ancestor_of(Node, Point1),

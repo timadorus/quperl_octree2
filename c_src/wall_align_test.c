@@ -14,17 +14,17 @@
 #include "quperl_octree.h"
 
 
-ErlNifUInt64 wall_align(ErlNifUInt64 node_val,
-                        int node_depth,
-                        ErlNifUInt64depth point_val) {
-  if (node_val == point_val) return node_val;
-
-  // get delta mask
-  ErlNifUInt64 delta = node_val ^ point_val;
-
-  __builtin_clzl (unsigned long int x)
-
-}
+//ErlNifUInt64 wall_align(ErlNifUInt64 node_val,
+//                        int node_depth,
+//                        ErlNifUInt64 point_val) {
+//  if (node_val == point_val) return node_val;
+//
+//  // get delta mask
+//  ErlNifUInt64 delta = node_val ^ point_val;
+//
+//  __builtin_clzl (unsigned long int x)
+//
+//}
 
 /*
  *    TEST FUNCTIONS
@@ -39,8 +39,8 @@ static void Test_get_wall_nif (CuTest* tc)
 CuSuite* QuperlOctreeNifGetSuite ()
 {
   CuSuite* suite = CuSuiteNew ();
-  SUITE_ADD_TEST(suite, Test_get_node_id);
-  SUITE_ADD_TEST(suite, Test_get_wall_nif);
+//  SUITE_ADD_TEST(suite, Test_get_node_id);
+//  SUITE_ADD_TEST(suite, Test_get_wall_nif);
   return suite;
 }
 

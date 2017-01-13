@@ -3,8 +3,9 @@
  */
 
 #include <stdio.h>
+#include <erl_nif.h>
 
-#include "erl_nif.h"
+
 #include "quperl_octree.h"
 
 
